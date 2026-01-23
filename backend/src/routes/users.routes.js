@@ -1,28 +1,52 @@
 const express = require("express");
 const prisma = require("../prisma");
+const auth = require("../middleware/auth");
+const requireRole = require("../middleware/requireRole");
+const bcrypt = require("bcrypt");
 
 const router = express.Router();
 
-
-router.get("/", async (req, res, next) => {
+router.get("/", auth, requireRole("ADMIN"), async (req, res, next) => {
   try {
-    const users = await prisma.user.findMany();
+    const users = await prisma.user.findMany({
+      select: { id: true, email: true, firstName: true, lastName: true, role: true },
+      orderBy: { id: "asc" },
+    });
     res.json(users);
   } catch (e) {
     next(e);
   }
 });
 
-
-router.post("/", async (req, res, next) => {
+router.patch("/:id", auth, requireRole("ADMIN"), async (req, res, next) => {
   try {
+    const id = Number(req.params.id);
     const { email, password, firstName, lastName, role } = req.body;
 
-    const user = await prisma.user.create({
-      data: { email, password, firstName, lastName, role },
+    const data = {};
+    if (email !== undefined) data.email = email;
+    if (firstName !== undefined) data.firstName = firstName;
+    if (lastName !== undefined) data.lastName = lastName;
+    if (role !== undefined) data.role = role;
+    if (password !== undefined) data.password = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.update({
+      where: { id },
+      data,
+      select: { id: true, email: true, firstName: true, lastName: true, role: true },
     });
 
-    res.status(201).json(user);
+    res.json(user);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete("/:id", auth, requireRole("ADMIN"), async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await prisma.user.delete({ where: { id } });
+    res.status(204).send();
   } catch (e) {
     next(e);
   }

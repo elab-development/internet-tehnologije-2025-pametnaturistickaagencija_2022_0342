@@ -1,12 +1,13 @@
 const express = require("express");
 const prisma = require("../prisma");
+const auth = require("../middleware/auth");
+const requireRole = require("../middleware/requireRole");
 
 const router = express.Router();
 
-router.get("/", async (req, res, next) => {
+router.get("/", auth, async (req, res, next) => {
   try {
-    const userId = Number(req.query.userId);
-    if (!userId) return res.status(400).json({ message: "userId is required" });
+    const userId = Number(req.user.userId);
 
     const chats = await prisma.chat.findMany({
       where: { userId },
@@ -19,18 +20,28 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-router.post("/", async (req, res, next) => {
+router.post("/", auth, async (req, res, next) => {
   try {
-    const { userId, chatName } = req.body;
-    if (!userId || !chatName) {
-      return res.status(400).json({ message: "userId and chatName are required" });
-    }
+    const { chatName } = req.body;
+    if (!chatName) return res.status(400).json({ message: "chatName is required" });
+
+    const userId = Number(req.user.userId);
 
     const chat = await prisma.chat.create({
-      data: { userId: Number(userId), chatName },
+      data: { userId, chatName },
     });
 
     res.status(201).json(chat);
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.delete("/:id", auth, requireRole("ADMIN"), async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await prisma.chat.delete({ where: { id } });
+    res.status(204).send();
   } catch (e) {
     next(e);
   }
