@@ -32,6 +32,7 @@ model User {
   firstName String  @map("first_name")
   lastName  String  @map("last_name")
   role      Role    @default(USER)
+  phone     String? @map("phone")
 
   savedOffers SavedOffer[]
   chats       Chat[]
@@ -70,7 +71,9 @@ model Chat {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([userId])
+  @@unique([userId,chatName])
   @@map("chat")
+  
 }
 
 model Message {
