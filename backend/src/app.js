@@ -13,9 +13,4 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Server error" });
 });
 
-require("dotenv").config();
-const authRoutes = require("./routes/auth");
-
-app.use("/api/auth", authRoutes);
-
 module.exports = app;
