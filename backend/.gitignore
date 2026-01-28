@@ -1,4 +1,11 @@
-node_modules
+node_modules/
+backend/node_modules/
+**/node_modules/
+
+.prisma/
+**/.prisma/
+
 .env
 .env.*
-dist
+dist/
+**/dist/
