@@ -8,7 +8,10 @@ const savedOffersRoutes = require("./savedOffers.routes");
 
 const router = express.Router();
 
+
 router.use("/auth", authRoutes);
+
+
 router.use("/users", usersRoutes);
 router.use("/chats", chatsRoutes);
 router.use("/messages", messagesRoutes);
