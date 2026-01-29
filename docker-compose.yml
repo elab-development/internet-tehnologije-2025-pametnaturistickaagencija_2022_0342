@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    container_name: pta_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pta_user
+      POSTGRES_PASSWORD: pta_pass
+      POSTGRES_DB: pta_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pta_pgdata:/var/lib/postgresql/data
+
+volumes:
+  pta_pgdata:
