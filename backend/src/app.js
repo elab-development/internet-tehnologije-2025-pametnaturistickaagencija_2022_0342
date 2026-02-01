@@ -20,6 +20,9 @@ app.use("/api", apiRoutes);
 const travelRoutes = require("./routes/travel.routes");
 app.use("/api", travelRoutes);
 
+const travelChatRoutes = require("./routes/travel.chat.routes");
+app.use("/api", travelChatRoutes);
+
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ message: "Server error" });
