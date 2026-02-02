@@ -1,5 +1,6 @@
 const express = require('express')
 const cors = require('cors')
+
 const app = express()
 
 app.use(
@@ -15,6 +16,12 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }))
 
 const apiRoutes = require('./routes')
 app.use('/api', apiRoutes)
+
+const travelRoutes = require('./routes/travel.routes')
+app.use('/api', travelRoutes)
+
+const travelChatRoutes = require('./routes/travel.chat.routes')
+app.use('/api', travelChatRoutes)
 
 app.use((err, req, res, next) => {
   console.error(err)
