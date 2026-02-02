@@ -61,31 +61,32 @@ model SavedOffer {
 }
 
 model Chat {
-  id       Int    @id @default(autoincrement())
-  userId   Int    @map("user_id")
-  chatName String @map("chat_name")
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  chatName String?
+  destination String?
+  summary     String?
+  preferences Json?
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages    Message[]
 
   @@index([userId])
-  @@unique([userId,chatName])
-  @@map("chat")
-  
 }
 
 model Message {
-  id         Int        @id @default(autoincrement())
-  chatId     Int        @map("chat_id")
-  senderType SenderType @map("sender_type")
-  text       String
-  date       DateTime   @default(now())
-  flag       Boolean    @default(false)
+  id        Int      @id @default(autoincrement())
+  chatId    Int
+  role      String   // "user" | "assistant" | "system"
+  content   String   // raw text OR JSON string (assistant)
+  createdAt DateTime @default(now())
 
-  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@index([chatId])
-  @@map("message")
+  @@index([createdAt])
 }
