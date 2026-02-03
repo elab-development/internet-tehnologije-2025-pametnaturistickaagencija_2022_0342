@@ -2,12 +2,27 @@ const { getGeminiModel } = require("./gemini");
 const serpapiTravelSearch = require("../services/serpapiTravelSearch");
 const { validateOrRepair } = require("../ai/validateOrRepair");
 
-function buildPrompt(userMessage, params, webResults) {
+function buildPrompt(userMessage, params, webResults, memory) {
+  const summaryText = memory?.summary
+    ? `\nKONTEKST (SUMMARY):\n${memory.summary}\n`
+    : "";
+
+  const lastMessagesText = (memory?.messages || [])
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n");
+
+  const memoryBlock =
+    summaryText || lastMessagesText
+      ? `\n${summaryText}\nPOSLEDNJIH 10 PORUKA:\n${lastMessagesText}\n`
+      : "";
+
   return `
 Ti si pametna turistička agencija. Na osnovu korisničke poruke i web rezultata napravi plan putovanja.
 Vrati ISKLJUČIVO validan JSON (bez markdown-a, bez objašnjenja, bez komentara).
 Ne koristi trailing zareze.
 Ako nemaš pitanja, follow_up_questions mora biti [].
+
+${memoryBlock}
 
 Korisnička poruka:
 ${userMessage}
@@ -63,7 +78,7 @@ function safeJsonParse(text) {
   }
 }
 
-async function travelPlanner ({ userMessage, params = {} }) {
+async function travelPlanner ({ userMessage, params = {}, memory = null }) {
   const model = getGeminiModel();
 
   const searchParams = {
@@ -74,7 +89,13 @@ async function travelPlanner ({ userMessage, params = {} }) {
     lang: params.lang || params.language || "sr",
   };
 
-  const webResultsRaw = await serpapiTravelSearch(searchParams);
+  let webResultsRaw = [];
+  try {
+    webResultsRaw = await serpapiTravelSearch(searchParams);
+  } catch (e) {
+    console.error("SERPAPI FAILED:", e?.message || e);
+    webResultsRaw = [];
+  }
 
   const webResults = (webResultsRaw || []).filter(
     (r) =>
@@ -84,11 +105,16 @@ async function travelPlanner ({ userMessage, params = {} }) {
       !r.link.includes("facebook.com")
   );
 
-  const resp = await model.generateContent(
-    buildPrompt(userMessage, params, webResults)
-  );
-
-  const text = resp.response.text();
+    let text = "";
+    try {
+      const resp = await model.generateContent(
+        buildPrompt(userMessage, params, webResults, memory)
+      );
+      text = resp.response.text();
+    } catch (e) {
+      console.error("GEMINI FAILED:", e?.message || e);
+      throw e;
+    }
 
   const result = await validateOrRepair(text, async (badOutput) => {
     const sourcesMin = (webResults || []).slice(0, 6).map((r) => ({

@@ -3,6 +3,10 @@ const prisma = require("../prisma");
 const auth = require("../middleware/auth");
 const { travelPlanner } = require("../ai/travelPlanner");
 
+const { getChatContext } = require("../ai/chatMemory");
+const { summarizeChat } = require("../ai/summarizeChat");
+
+
 const router = express.Router();
 
 router.use(auth);
@@ -110,12 +114,31 @@ router.post("/:id/messages", async (req, res, next) => {
       },
     });
 
+    const totalCount = await prisma.message.count({ where: { chatId } });
+
+    const chatFresh = await prisma.chat.findUnique({
+      where: { id: chatId },
+      select: { summary: true, summaryUpdatedAt: true },
+    });
+
+    if (totalCount >= 20) {
+      const tooOld =
+        !chatFresh?.summaryUpdatedAt ||
+        Date.now() - new Date(chatFresh.summaryUpdatedAt).getTime() > 1000 * 60 * 10;
+
+      if (!chatFresh.summary || tooOld) {
+        await summarizeChat(chatId);
+      }
+    }
+    const { summary, messages } = await getChatContext(chatId, 10);
+
     const plan = await travelPlanner({
       userMessage: content,
       params: {
         destination: chat.destination,
         language: "sr",
       },
+      memory: {summary, messages},
     });
 
     const assistantMessage = await prisma.message.create({

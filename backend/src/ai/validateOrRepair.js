@@ -24,23 +24,15 @@ function safeJsonParse(text) {
 
 async function validateOrRepair(rawText, repairFn) {
  
-  let obj = safeJsonParse(rawText);
+  try {
+    const obj = safeJsonParse(rawText);
+    return travelPlanV1Schema.parse(obj);
+  } catch (e1) {
+    const repairedText = await repairFn(rawText);
 
-  const parsed = TravelPlanV1Schema.safeParse(obj);
-  if (parsed.success) return parsed.data;
-
-  const repairedText = await repairFn(rawText, parsed.error);
-  obj = safeJsonParse(repairedText);
-
-  const parsed2 = TravelPlanV1Schema.safeParse(obj);
-  if (!parsed2.success) {
-    
-    const err = new Error("Repair failed: output does not match schema");
-    err.details = parsed2.error.flatten();
-    throw err;
+    const obj2 = safeJsonParse(repairedText);
+    return travelPlanV1Schema.parse(obj2);
   }
-
-  return parsed2.data;
 }
 
 module.exports = { validateOrRepair };

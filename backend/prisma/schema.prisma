@@ -68,6 +68,7 @@ model Chat {
   chatName String?
   destination String?
   summary     String?
+  summaryUpdatedAt DateTime?
   preferences Json?
 
   createdAt   DateTime @default(now())
