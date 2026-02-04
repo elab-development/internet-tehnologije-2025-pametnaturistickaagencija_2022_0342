@@ -44,12 +44,12 @@ model User {
 }
 
 model SavedOffer {
-  id        Int        @id @default(autoincrement())
-  userId    Int        @map("user_id")
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
   name      String
-  price     Decimal    
-  siteLinks Json       @map("site_links")
-  offerType OfferType  @map("offer_type")
+  price     Decimal
+  siteLinks Json      @map("site_links")
+  offerType OfferType @map("offer_type")
   date      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -61,20 +61,23 @@ model SavedOffer {
 }
 
 model Chat {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        Int  @id @default(autoincrement())
+  userId    Int
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  chatName String?
+  chatName    String?
   destination String?
   summary     String?
   summaryUpdatedAt DateTime?
+
   preferences Json?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  criteria   Json? @map("criteria")
 
-  messages    Message[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
 
   @@index([userId])
 }
@@ -86,7 +89,7 @@ model Message {
   content   String   // raw text OR JSON string (assistant)
   createdAt DateTime @default(now())
 
-  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
 
   @@index([chatId])
   @@index([createdAt])
