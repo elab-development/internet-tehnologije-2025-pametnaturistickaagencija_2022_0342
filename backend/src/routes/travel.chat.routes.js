@@ -1,5 +1,5 @@
 const express = require("express");
-const { planTravel } = require("../ai/travelPlanner");
+const { travelPlanner } = require("../ai/travelPlanner");
 
 const router = express.Router();
 
@@ -12,12 +12,18 @@ router.post("/travel/chat", async (req, res) => {
       return res.status(400).json({ message: "Missing body.message" });
     }
 
-    const result = await planTravel({ userMessage: message, params });
+   
+    const result = await travelPlanner({
+      userMessage: message,
+      params,
+    
+    });
+
     return res.json(result);
   } catch (e) {
     return res.status(500).json({
       message: "Travel chat failed",
-      error: e.message,
+      error: e?.message || String(e),
     });
   }
 });

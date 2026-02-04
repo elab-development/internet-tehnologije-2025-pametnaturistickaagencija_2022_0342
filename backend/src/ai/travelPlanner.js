@@ -2,13 +2,63 @@ const { getGeminiModel } = require("./gemini");
 const serpapiTravelSearch = require("../services/serpapiTravelSearch");
 const { validateOrRepair } = require("../ai/validateOrRepair");
 
-function buildPrompt(userMessage, params, webResults, memory) {
-  let summary = memory?.summary || "";
-  if (summary.trim().startsWith("{")) {
-    try {
-      summary = JSON.parse(summary).summary || summary;
-    } catch {}
+
+
+function safeParseSummary(summary) {
+  if (!summary) return "";
+  const s = String(summary);
+  if (!s.trim().startsWith("{")) return s;
+
+  try {
+    const obj = JSON.parse(s);
+    return obj?.summary ? String(obj.summary) : s;
+  } catch {
+    return s;
   }
+}
+
+function normalizeWebResults(raw = []) {
+ 
+  return (raw || [])
+    .filter((r) => r && r.link)
+    .filter(
+      (r) =>
+        !String(r.link).includes("instagram.com") &&
+        !String(r.link).includes("tiktok.com") &&
+        !String(r.link).includes("facebook.com")
+    )
+    .map((r) => ({
+      title: r.title || r.source || "Source",
+      link: r.link,
+      snippet: r.snippet || "",
+      source: r.source || "",
+    }));
+}
+
+function normalizeSourcesFromWebResults(webResults = [], limit = 3) {
+  const seen = new Set();
+  const out = [];
+
+  for (const r of webResults || []) {
+    if (!r?.link) continue;
+    if (seen.has(r.link)) continue;
+    seen.add(r.link);
+
+    out.push({
+      title: String(r.title || r.source || "Source").slice(0, 140),
+      link: String(r.link),
+    });
+
+    if (out.length >= limit) break;
+  }
+
+  return out;
+}
+
+
+
+function buildPrompt(userMessage, params, webResults, memory) {
+  const summary = safeParseSummary(memory?.summary || "");
 
   const summaryText = summary ? `\nKONTEKST (SUMMARY):\n${summary}\n` : "";
 
@@ -16,18 +66,23 @@ function buildPrompt(userMessage, params, webResults, memory) {
     .map((m) => {
       const role = String(m.role || "").toUpperCase();
       let c = String(m.content || "");
+
+      
       if (role === "ASSISTANT") {
         if (c.trim().startsWith("{")) c = c.slice(0, 300) + "...";
         if (c.length > 350) c = c.slice(0, 350) + "...";
       } else {
         if (c.length > 350) c = c.slice(0, 350) + "...";
       }
+
       return `${role}: ${c}`;
     })
     .join("\n");
 
   const memoryBlock =
-    summaryText || lastMessagesText ? `\n${summaryText}\nPOSLEDNJIH 10 PORUKA:\n${lastMessagesText}\n` : "";
+    summaryText || lastMessagesText
+      ? `\n${summaryText}\nPOSLEDNJIH 10 PORUKA:\n${lastMessagesText}\n`
+      : "";
 
   return `
 Ti si pametna turistička agencija.
@@ -45,7 +100,7 @@ ${userMessage}
 Parametri (ako postoje):
 ${JSON.stringify(params || {}, null, 2)}
 
-Web rezultati (title/link/snippet):
+Web rezultati (title/link/snippet) — koristi ih za konkretne informacije (cene, radno vreme, ulaznice, adrese):
 ${JSON.stringify((webResults || []).slice(0, 3), null, 2)}
 
 Vrati JSON tačno po šemi:
@@ -63,13 +118,15 @@ Vrati JSON tačno po šemi:
   "plan": [
     { "day": number, "title": string, "activities": string[] }
   ],
-  "sources": [
-    { "title": string, "link": string }
-  ],
   "follow_up_questions": string[]
 }
+
+NAPOMENA:
+- Ne moraš da vraćaš "sources". Server će dodati proverljive izvore automatski.
 `.trim();
 }
+
+
 
 async function travelPlanner({ userMessage, params = {}, memory = null }) {
   const model = getGeminiModel();
@@ -90,15 +147,10 @@ async function travelPlanner({ userMessage, params = {}, memory = null }) {
     webResultsRaw = [];
   }
 
-  const webResults = (webResultsRaw || []).filter(
-    (r) =>
-      r.link &&
-      !r.link.includes("instagram.com") &&
-      !r.link.includes("tiktok.com") &&
-      !r.link.includes("facebook.com")
-  );
-  //console.log("WEB RESULTS COUNT:", webResults.length);
+  const webResults = normalizeWebResults(webResultsRaw);
 
+
+  const sourcesMin = normalizeSourcesFromWebResults(webResults, 3);
 
   let text = "";
   try {
@@ -117,7 +169,7 @@ async function travelPlanner({ userMessage, params = {}, memory = null }) {
         budget_eur: params.budget_eur ?? null,
         interests: Array.isArray(params.interests) ? params.interests : [],
         type: params.type ?? null,
-        language: params.language || "sr",
+        language: params.language || params.lang || "sr",
       },
       plan: [
         {
@@ -126,17 +178,13 @@ async function travelPlanner({ userMessage, params = {}, memory = null }) {
           activities: ["AI servis je trenutno pod opterećenjem ili nedostupan.", "Probaj ponovo za malo."],
         },
       ],
-      sources: [],
+      sources: sourcesMin,
       follow_up_questions: ["Možeš li poslati poruku ponovo?"],
     };
   }
 
-  const result = await validateOrRepair(text, async (badOutput) => {
-    const sourcesMin = (webResults || []).slice(0, 3).map((r) => ({
-      title: r.title || r.source || "Source",
-      link: r.link,
-    }));
 
+  const result = await validateOrRepair(text, async (badOutput) => {
     const repairPrompt = `
 Ti si validator i popravljač JSON-a.
 Vrati ISKLJUČIVO validan JSON (bez markdown-a, bez komentara).
@@ -160,17 +208,14 @@ Ispravi sledeći output da tačno odgovara šemi.
   "plan": [
     { "day": number, "title": string, "activities": string[] }
   ],
-  "sources": [
-    { "title": string, "link": string }
-  ],
   "follow_up_questions": string[]
 }
 
 NAPOMENE:
 - follow_up_questions mora biti niz (ako nema pitanja -> [])
 - plan mora imati bar 1 dan
-- sources uključi bar ove:
-${JSON.stringify(sourcesMin, null, 2)}
+- Ne vraćaj "sources" uopšte (server ih dodaje)
+- Destination i language popuni ako možeš iz korisničke poruke/parametara
 
 NEVALIDAN OUTPUT:
 ${badOutput}
@@ -183,6 +228,7 @@ ${badOutput}
       const status = e?.status || e?.response?.status;
       console.error("REPAIR FAILED:", status, e?.message || e);
 
+  
       return JSON.stringify({
         criteria: {
           destination: params.destination || "",
@@ -192,7 +238,7 @@ ${badOutput}
           budget_eur: params.budget_eur ?? null,
           interests: Array.isArray(params.interests) ? params.interests : [],
           type: params.type ?? null,
-          language: params.language || "sr",
+          language: params.language || params.lang || "sr",
         },
         plan: [
           {
@@ -201,22 +247,19 @@ ${badOutput}
             activities: ["AI nije vratio ispravan JSON format.", "Probaj ponovo ili dopuni upit."],
           },
         ],
-        sources: sourcesMin,
         follow_up_questions: ["Koliko dana i koji budžet (ako želiš da preciziram)?"],
       });
     }
   });
 
+
   if (result?.criteria) {
     if (!result.criteria.destination && params.destination) result.criteria.destination = params.destination;
-    if (!result.criteria.language) result.criteria.language = params.language || "sr";
+    if (!result.criteria.language) result.criteria.language = params.language || params.lang || "sr";
   }
-  if ((!result.sources || result.sources.length === 0) && webResults.length) {
-    result.sources = webResults.slice(0, 3).map((r) => ({
-      title: r.title || r.source || "Source",
-      link: r.link,
-  }));
-}
+
+
+  result.sources = sourcesMin;
 
   return result;
 }
