@@ -1,14 +1,14 @@
 const { z } = require("zod");
 
 const CriteriaSchema = z.object({
-  destination: z.string().min(1),
-  from: z.string().nullable(),
-  to: z.string().nullable(),
-  days: z.number().int().positive().nullable(),
-  budget_eur: z.number().nonnegative().nullable(),
-  interests: z.array(z.string().min(1)).default([]),
-  type: z.string().nullable(),
-  language: z.enum(["sr", "en"]),
+  destination: z.string().min(1).catch(""),
+  from: z.string().nullable().catch(null),
+  to: z.string().nullable().catch(null),
+  days: z.number().int().positive().nullable().catch(null),
+  budget_eur: z.number().nonnegative().nullable().catch(null),
+  interests: z.array(z.string().min(1)).catch([]),
+  type: z.string().nullable().catch(null),
+  language: z.enum(["sr", "en"]).catch("sr"),
 });
 
 const PlanDaySchema = z.object({
@@ -25,8 +25,8 @@ const SourceSchema = z.object({
 const TravelPlanV1Schema = z.object({
   criteria: CriteriaSchema,
   plan: z.array(PlanDaySchema).min(1),
-  sources: z.array(SourceSchema).default([]),
-  follow_up_questions: z.array(z.string().min(1)).default([]),
+  sources: z.array(SourceSchema).catch([]),
+  follow_up_questions: z.array(z.string().min(1)).catch([]),
 });
 
-module.exports = { TravelPlanV1Schema };
+module.exports = { travelPlanV1Schema: TravelPlanV1Schema, TravelPlanV1Schema };
