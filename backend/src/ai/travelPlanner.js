@@ -2,8 +2,6 @@ const { getGeminiModel } = require("./gemini");
 const serpapiTravelSearch = require("../services/serpapiTravelSearch");
 const { validateOrRepair } = require("../ai/validateOrRepair");
 
-
-
 function safeParseSummary(summary) {
   if (!summary) return "";
   const s = String(summary);
@@ -17,49 +15,29 @@ function safeParseSummary(summary) {
   }
 }
 
-function normalizeWebResults(raw = []) {
- 
-  return (raw || [])
-    .filter((r) => r && r.link)
-    .filter(
-      (r) =>
-        !String(r.link).includes("instagram.com") &&
-        !String(r.link).includes("tiktok.com") &&
-        !String(r.link).includes("facebook.com")
-    )
-    .map((r) => ({
-      title: r.title || r.source || "Source",
-      link: r.link,
-      snippet: r.snippet || "",
-      source: r.source || "",
-    }));
-}
 
-function normalizeSourcesFromWebResults(webResults = [], limit = 3) {
+function normalizeSourcesFromOffers(offers = [], limit = 3) {
   const seen = new Set();
   const out = [];
 
-  for (const r of webResults || []) {
-    if (!r?.link) continue;
-    if (seen.has(r.link)) continue;
-    seen.add(r.link);
+  for (const o of offers || []) {
+    const link = o?.source?.link;
+    if (!link) continue;
+    if (seen.has(link)) continue;
+    seen.add(link);
 
     out.push({
-      title: String(r.title || r.source || "Source").slice(0, 140),
-      link: String(r.link),
+      title: String(o?.accommodation?.name || o?.transport?.type || "Source").slice(0, 140),
+      link: String(link),
     });
 
     if (out.length >= limit) break;
   }
-
   return out;
 }
 
-
-
-function buildPrompt(userMessage, params, webResults, memory) {
+function buildPrompt(userMessage, params, offers, memory) {
   const summary = safeParseSummary(memory?.summary || "");
-
   const summaryText = summary ? `\nKONTEKST (SUMMARY):\n${summary}\n` : "";
 
   const lastMessagesText = (memory?.messages || [])
@@ -67,14 +45,12 @@ function buildPrompt(userMessage, params, webResults, memory) {
       const role = String(m.role || "").toUpperCase();
       let c = String(m.content || "");
 
-      
       if (role === "ASSISTANT") {
         if (c.trim().startsWith("{")) c = c.slice(0, 300) + "...";
         if (c.length > 350) c = c.slice(0, 350) + "...";
       } else {
         if (c.length > 350) c = c.slice(0, 350) + "...";
       }
-
       return `${role}: ${c}`;
     })
     .join("\n");
@@ -100,8 +76,8 @@ ${userMessage}
 Parametri (ako postoje):
 ${JSON.stringify(params || {}, null, 2)}
 
-Web rezultati (title/link/snippet) — koristi ih za konkretne informacije (cene, radno vreme, ulaznice, adrese):
-${JSON.stringify((webResults || []).slice(0, 3), null, 2)}
+NORMALIZOVANE PONUDE (iz sistema) — koristi ih da odabereš najbolje i objasniš zašto:
+${JSON.stringify((offers || []).slice(0, 10), null, 2)}
 
 Vrati JSON tačno po šemi:
 {
@@ -109,27 +85,39 @@ Vrati JSON tačno po šemi:
     "destination": string,
     "from": string|null,
     "to": string|null,
-    "days": number|null,
     "budget_eur": number|null,
     "interests": string[],
     "type": string|null,
     "language": "sr"|"en"
   },
-  "plan": [
-    { "day": number, "title": string, "activities": string[] }
+  "offers": [
+    {
+      "accommodation": {
+        "name": string,
+        "type": string,
+        "stars": number|null,
+        "rating": number|null,
+        "distance_from_center_km": number|null
+      } | null,
+      "price": { "total": number|null, "currency": string, "per_person": boolean },
+      "transport": { "type": string, "from": string|null, "to": string, "estimated_duration": string|null },
+      "availability": boolean|null,
+      "ai_explanation": string
+    }
   ],
   "follow_up_questions": string[]
 }
 
-NAPOMENA:
-- Ne moraš da vraćaš "sources". Server će dodati proverljive izvore automatski.
+PRAVILA:
+- "offers" vrati max 6 najboljih ponuda (sortiraj po uklapanju u budžet + interesovanja + blizina centra ako postoji).
+- Svaka ponuda MORA da ima "ai_explanation" (1-2 rečenice, jasno i korisnički).
+- Nemoj ubacivati linkove u output; server dodaje izvore.
 `.trim();
 }
 
-
-
 async function travelPlanner({ userMessage, params = {}, memory = null }) {
   const model = getGeminiModel();
+
 
   const searchParams = {
     destination: params.destination || userMessage,
@@ -137,24 +125,28 @@ async function travelPlanner({ userMessage, params = {}, memory = null }) {
     interests: Array.isArray(params.interests) ? params.interests.join(", ") : params.interests || "",
     budget: params.budget || params.budget_eur,
     lang: params.lang || params.language || "sr",
+    from: params.from || "",
+    to: params.to || "",
+    fromCity: params.fromCity || params.departure || "Beograd",
   };
 
-  let webResultsRaw = [];
+  let searchResult = null;
   try {
-    webResultsRaw = await serpapiTravelSearch(searchParams);
+    searchResult = await serpapiTravelSearch(searchParams); 
   } catch (e) {
     console.error("SERPAPI FAILED:", e?.message || e);
-    webResultsRaw = [];
+    searchResult = { destination: searchParams.destination, offers: [] };
   }
 
-  const webResults = normalizeWebResults(webResultsRaw);
+  const destination = searchResult?.destination || searchParams.destination || "";
+  const offers = Array.isArray(searchResult?.offers) ? searchResult.offers : [];
 
-
-  const sourcesMin = normalizeSourcesFromWebResults(webResults, 3);
+ 
+  const sourcesMin = normalizeSourcesFromOffers(offers, 3);
 
   let text = "";
   try {
-    const resp = await model.generateContent(buildPrompt(userMessage, params, webResults, memory));
+    const resp = await model.generateContent(buildPrompt(userMessage, params, offers, memory));
     text = resp.response.text();
   } catch (e) {
     const status = e?.status || e?.response?.status;
@@ -162,27 +154,28 @@ async function travelPlanner({ userMessage, params = {}, memory = null }) {
 
     return {
       criteria: {
-        destination: params.destination || "",
-        from: null,
-        to: null,
-        days: params.days ?? null,
-        budget_eur: params.budget_eur ?? null,
+        destination,
+        from: params.from ?? null,
+        to: params.to ?? null,
+        budget_eur: params.budget_eur ?? params.budget ?? null,
         interests: Array.isArray(params.interests) ? params.interests : [],
         type: params.type ?? null,
         language: params.language || params.lang || "sr",
       },
-      plan: [
-        {
-          day: 1,
-          title: "Privremeno preopterećenje",
-          activities: ["AI servis je trenutno pod opterećenjem ili nedostupan.", "Probaj ponovo za malo."],
-        },
-      ],
+      offers: offers.slice(0, 6).map((o) => ({
+        ...o,
+        ai_explanation:
+          (params.lang || params.language) === "en"
+            ? "AI is temporarily unavailable. This offer is shown based on the best available match."
+            : "AI je trenutno nedostupan. Ponuda je prikazana na osnovu najboljeg poklapanja.",
+      })),
       sources: sourcesMin,
-      follow_up_questions: ["Možeš li poslati poruku ponovo?"],
+      follow_up_questions:
+        (params.lang || params.language) === "en"
+          ? ["What dates and budget should I optimize for?"]
+          : ["Koji su datumi i budžet da bolje optimizujem ponude?"],
     };
   }
-
 
   const result = await validateOrRepair(text, async (badOutput) => {
     const repairPrompt = `
@@ -199,23 +192,34 @@ Ispravi sledeći output da tačno odgovara šemi.
     "destination": string,
     "from": string|null,
     "to": string|null,
-    "days": number|null,
     "budget_eur": number|null,
     "interests": string[],
     "type": string|null,
     "language": "sr"|"en"
   },
-  "plan": [
-    { "day": number, "title": string, "activities": string[] }
+  "offers": [
+    {
+      "accommodation": {
+        "name": string,
+        "type": string,
+        "stars": number|null,
+        "rating": number|null,
+        "distance_from_center_km": number|null
+      } | null,
+      "price": { "total": number|null, "currency": string, "per_person": boolean },
+      "transport": { "type": string, "from": string|null, "to": string, "estimated_duration": string|null },
+      "availability": boolean|null,
+      "ai_explanation": string
+    }
   ],
   "follow_up_questions": string[]
 }
 
 NAPOMENE:
 - follow_up_questions mora biti niz (ako nema pitanja -> [])
-- plan mora imati bar 1 dan
+- offers mora biti niz (max 6), i svaka ponuda mora imati ai_explanation
 - Ne vraćaj "sources" uopšte (server ih dodaje)
-- Destination i language popuni ako možeš iz korisničke poruke/parametara
+- destination i language popuni ako možeš iz korisničke poruke/parametara
 
 NEVALIDAN OUTPUT:
 ${badOutput}
@@ -228,34 +232,38 @@ ${badOutput}
       const status = e?.status || e?.response?.status;
       console.error("REPAIR FAILED:", status, e?.message || e);
 
-  
       return JSON.stringify({
         criteria: {
-          destination: params.destination || "",
-          from: null,
-          to: null,
-          days: params.days ?? null,
-          budget_eur: params.budget_eur ?? null,
+          destination,
+          from: params.from ?? null,
+          to: params.to ?? null,
+          budget_eur: params.budget_eur ?? params.budget ?? null,
           interests: Array.isArray(params.interests) ? params.interests : [],
           type: params.type ?? null,
           language: params.language || params.lang || "sr",
         },
-        plan: [
-          {
-            day: 1,
-            title: "Plan nije mogao da se validira",
-            activities: ["AI nije vratio ispravan JSON format.", "Probaj ponovo ili dopuni upit."],
-          },
-        ],
-        follow_up_questions: ["Koliko dana i koji budžet (ako želiš da preciziram)?"],
+        offers: offers.slice(0, 6).map((o) => ({
+          ...o,
+          ai_explanation:
+            (params.lang || params.language) === "en"
+              ? "This offer is selected as a best-effort match based on available data."
+              : "Ova ponuda je izabrana kao najbolje poklapanje na osnovu dostupnih podataka.",
+        })),
+        follow_up_questions:
+          (params.lang || params.language) === "en"
+            ? ["Should I prioritize lower price or better location?"]
+            : ["Da li da prioritet bude niža cena ili bolja lokacija?"],
       });
     }
   });
 
 
   if (result?.criteria) {
-    if (!result.criteria.destination && params.destination) result.criteria.destination = params.destination;
+    if (!result.criteria.destination) result.criteria.destination = destination;
     if (!result.criteria.language) result.criteria.language = params.language || params.lang || "sr";
+    if (result.criteria.budget_eur == null && (params.budget_eur || params.budget)) {
+      result.criteria.budget_eur = params.budget_eur ?? params.budget ?? null;
+    }
   }
 
 
