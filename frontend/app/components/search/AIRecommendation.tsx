@@ -1,6 +1,6 @@
 'use client'
 
-import { AIResponse } from '@/lib/types/search'
+import { AIResponse } from '@/lib/api/ai-search'
 
 interface AIRecommendationProps {
   aiResponse: AIResponse
@@ -22,24 +22,25 @@ export function AIRecommendation({ aiResponse }: AIRecommendationProps) {
       </div>
 
       <div className="bg-white rounded-lg p-4 shadow-sm">
-        <p className="text-gray-700 mb-4">{aiResponse.explanation}</p>
+        <p className="text-gray-700 mb-4">{aiResponse.aiAnalysis.explanation}</p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div className="bg-blue-50 p-3 rounded">
             <div className="font-medium text-blue-700">Filter cene</div>
             <div>
-              €{aiResponse.filters.priceRange[0]} - €{aiResponse.filters.priceRange[1]}
+              €{aiResponse.aiAnalysis.filters.priceRange[0]} - €
+              {aiResponse.aiAnalysis.filters.priceRange[1]}
             </div>
           </div>
 
           <div className="bg-green-50 p-3 rounded">
             <div className="font-medium text-green-700">Prioritet lokacije</div>
-            <div>{aiResponse.filters.locationPriority.join(', ')}</div>
+            <div>{aiResponse.aiAnalysis.filters.locationKeywords.join(', ')}</div>
           </div>
 
           <div className="bg-purple-50 p-3 rounded">
             <div className="font-medium text-purple-700">Obavezno uključuje</div>
-            <div>{aiResponse.filters.mustHave.join(', ') || 'sve opcije'}</div>
+            <div>{aiResponse.aiAnalysis.filters.mustHaveAmenities.join(', ') || 'sve opcije'}</div>
           </div>
         </div>
       </div>

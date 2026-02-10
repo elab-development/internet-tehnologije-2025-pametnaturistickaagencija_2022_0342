@@ -17,7 +17,6 @@ interface AuthContextType {
   token: string | null
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>
   register: (data: RegisterData) => Promise<{ success: boolean; message?: string }>
-  guestLogin: () => void
   logout: () => void
   loading: boolean
 }
@@ -180,20 +179,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const guestLogin = () => {
-    const guestUser: User = {
-      id: 0,
-      email: 'gost@example.com',
-      firstName: 'Gost',
-      lastName: 'Korisnik',
-      role: 'gost' as UserRole,
-    }
-    setUser(guestUser)
-    setToken(null)
-    localStorage.setItem('user', JSON.stringify(guestUser))
-    localStorage.removeItem('token')
-  }
-
   const logout = () => {
     setUser(null)
     setToken(null)
@@ -208,7 +193,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token,
         login,
         register,
-        guestLogin,
         logout,
         loading,
       }}

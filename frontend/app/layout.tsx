@@ -6,11 +6,13 @@ import { AuthProvider, useAuth } from '@/app/context/AuthContext'
 import { LoadingSpinner } from '@/app/components/ui/LoadingSpinner'
 import Link from 'next/link'
 import { Button } from './components/ui/Button'
-
+import { useRouter } from 'next/navigation'
+import { Footer } from './components/layout/Footer'
 const inter = Inter({ subsets: ['latin'] })
 
 function RootLayoutContent({ children }: { children: React.ReactNode }) {
   const { loading, user, logout } = useAuth()
+  const router = useRouter()
 
   if (loading) {
     return (
@@ -39,10 +41,10 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
 
                 <div className="flex items-center space-x-4">
                   <Link
-                    href="/search"
+                    href="/"
                     className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
                   >
-                    🔍 AI Pretraga
+                    🔍 Početna
                   </Link>
 
                   {user ? (
@@ -53,7 +55,12 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
                       >
                         👤 {user.firstName}
                       </Link>
-                      <Button variant="outline" size="sm" onClick={logout}>
+                      <Button
+                        variant="outline"
+                        className="cursor-pointer"
+                        size="sm"
+                        onClick={logout}
+                      >
                         Odjavi se
                       </Button>
                     </>
@@ -79,6 +86,7 @@ function RootLayoutContent({ children }: { children: React.ReactNode }) {
           </nav>
           {children}
         </main>
+        <Footer />
       </body>
     </html>
   )

@@ -65,8 +65,10 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">🤖 AI Pretraga Putovanja</h2>
-
+      <h2 className="text-2xl font-bold text-gray-800">🤖 AI Pretraga Putovanja</h2>
+      <p className="text-gray-600 mt-1 mb-6">
+        Naš napredni AI će analizirati vaše zahteve i pronaći optimalne ponude
+      </p>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <DatePicker
