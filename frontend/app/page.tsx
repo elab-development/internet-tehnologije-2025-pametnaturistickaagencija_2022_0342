@@ -85,6 +85,24 @@ export default function HomePage() {
         </div>
 
         {getDashboardContent()}
+
+        <div className="mt-8 pt-8 border-t border-gray-200">
+          <h2 className="text-xl font-semibold mb-4">Status sistema</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-green-50 p-4 rounded-lg">
+              <h3 className="font-medium text-green-800">SK1 - Prijava</h3>
+              <p className="text-green-600">Funkcionalna</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <h3 className="font-medium text-green-800">SK2 - Registracija</h3>
+              <p className="text-green-600">Funkcionalna</p>
+            </div>
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h3 className="font-medium text-blue-800">Gost sesija</h3>
+              <p className="text-blue-600">Aktivna</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
