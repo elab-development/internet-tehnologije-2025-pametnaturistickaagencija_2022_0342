@@ -66,6 +66,7 @@ Vrati ISKLJUČIVO validan JSON (bez markdown-a, bez objašnjenja, bez komentara)
 Output mora biti 100% parseable sa JSON.parse u Node.js.
 Ne sme da sadrži nikakav tekst pre/posle JSON-a.
 Ne koristi trailing zareze.
+Ako interests bude prazan niz, napravi opšti plan (top znamenitosti + lokalna hrana + šetnje) i dodaj 1 do 2 follow_up_questions da precizira interesovanja.
 Ako nemaš pitanja, follow_up_questions mora biti [].
 
 ${memoryBlock}

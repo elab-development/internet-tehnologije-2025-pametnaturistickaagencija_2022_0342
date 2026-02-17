@@ -12,7 +12,7 @@ export interface TravelOffer {
   name: string
   description: string
   price: number
-  offerType: 'HOTEL' | 'FLIGHT' | 'PACKAGE' | 'OTHER'
+  type: 'HOTEL' | 'FLIGHT' | 'PACKAGE' | 'OTHER'
   location: string
   distance: number
   transportation: string[]
@@ -21,7 +21,6 @@ export interface TravelOffer {
   imageUrl: string
   siteLinks: Record<string, string>
   aiExplanation: string
-  date: Date
 }
 
 export interface AIResponse {

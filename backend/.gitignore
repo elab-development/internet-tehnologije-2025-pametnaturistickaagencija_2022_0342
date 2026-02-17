@@ -8,9 +8,4 @@ dist/
 **/dist/
 
 .prisma/
-<<<<<<< HEAD
 **/.prisma/
-
-=======
-**/.prisma/
->>>>>>> 7cbd8018d818580b85e25377c7e0530a592bcd04

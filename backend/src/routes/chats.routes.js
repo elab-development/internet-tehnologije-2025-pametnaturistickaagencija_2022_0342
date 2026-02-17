@@ -4,6 +4,8 @@ const auth = require("../middleware/auth");
 const { travelPlanner } = require("../ai/travelPlanner");
 const { getChatContext } = require("../ai/chatMemory");
 const { summarizeChat } = require("../ai/summarizeChat");
+const { extractPreferences } = require("../ai/extractPreferences");
+
 
 const router = express.Router();
 router.use(auth);
@@ -21,25 +23,13 @@ function parseChatId(req, res) {
   return chatId;
 }
 
-function extractPreferences(text) {
-  const t = (text || "").toLowerCase();
-  const prefs = {};
-
-  const daysMatch = t.match(/(\d+)\s*(dan|dana|days)/);
-  if (daysMatch) prefs.days = Number(daysMatch[1]);
-
-  const budgetMatch = t.match(/(\d+)\s*(€|eur|eura)/);
-  if (budgetMatch) prefs.budget_eur = Number(budgetMatch[1]);
-
-  const interests = [];
-  if (t.includes("muzej") || t.includes("museum")) interests.push("muzeji");
-  if (t.includes("hrana") || t.includes("food")) interests.push("hrana");
-  if (t.includes("noć") || t.includes("night")) interests.push("noćni život");
-  if (interests.length) prefs.interests = interests;
-
-  if (t.includes("city break")) prefs.type = "city break";
-
-  return prefs;
+function diffDays(from, to) {
+  const a = new Date(from);
+  const b = new Date(to);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  const ms = b.getTime() - a.getTime();
+  const days = Math.round(ms / (1000 * 60 * 60 * 24));
+  return days > 0 ? days : null;
 }
 
 router.get("/", async (req, res, next) => {
@@ -121,21 +111,39 @@ router.post("/:id/messages", async (req, res, next) => {
     });
 
     const extracted = extractPreferences(content);
-    if (Object.keys(extracted).length > 0) {
-      const current = chat.preferences || {};
-      const merged = {
-        ...current,
-        ...extracted,
-        interests: extracted.interests || current.interests || [],
-      };
 
-      await prisma.chat.update({
-        where: { id: chatId },
-        data: { preferences: merged },
-      });
+if (Object.keys(extracted).length > 0) {
+  const current = chat.preferences || {};
 
-      chat.preferences = merged;
-    }
+  const merged = {
+    ...current,
+    ...extracted,
+    interests: Array.from(new Set([...(current.interests || []), ...(extracted.interests || [])])),
+    diet: Array.from(new Set([...(current.diet || []), ...(extracted.diet || [])])),
+    avoid: Array.from(new Set([...(current.avoid || []), ...(extracted.avoid || [])])),
+  };
+  if (merged.avoid?.length && merged.interests?.length) {
+    merged.interests = merged.interests.filter((i) => !merged.avoid.includes(i));
+  }
+
+  if ((!merged.days || merged.days <= 0) && merged.from && merged.to) {
+    const d = diffDays(merged.from, merged.to);
+    if (d) merged.days = d;
+  }
+  
+
+  await prisma.chat.update({
+    where: { id: chatId },
+    data: {
+      preferences: merged,
+      destination: merged.destination || chat.destination || null,
+    },
+  });
+
+  chat.preferences = merged;
+  chat.destination = merged.destination || chat.destination;
+}
+
 
     const totalCount = await prisma.message.count({ where: { chatId } });
 
