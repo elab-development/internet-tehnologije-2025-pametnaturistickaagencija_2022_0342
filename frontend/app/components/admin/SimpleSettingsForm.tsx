@@ -3,14 +3,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Save, Moon, Sun, Globe, Mail, Bell, Eye, EyeOff } from 'lucide-react'
+import { Save, Moon, Sun, Globe, Mail, Bell, Eye, EyeOff, Phone } from 'lucide-react'
 
 interface Settings {
   siteName: string
   siteDescription: string
   itemsPerPage: number
-  theme: 'light' | 'dark'
   contactEmail: string
+  contactPhoneNumber: '38164123123'
 }
 
 interface Props {
@@ -22,8 +22,8 @@ const defaultSettings: Settings = {
   siteName: 'Moja Aplikacija',
   siteDescription: 'Opis sajta',
   itemsPerPage: 10,
-  theme: 'light',
   contactEmail: 'kontakt@example.com',
+  contactPhoneNumber: '38164123123',
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
@@ -93,13 +93,6 @@ export default function SimpleSettingsForm({ initialData }: Props) {
     } finally {
       setSaving(false)
 
-      // Primeni temu odmah
-      if (settings.theme === 'dark') {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
-
       setTimeout(() => setMessage(null), 3000)
     }
   }
@@ -154,11 +147,13 @@ export default function SimpleSettingsForm({ initialData }: Props) {
               <span className="text-gray-500">Naziv sajta:</span> {settings.siteName}
             </div>
             <div>
-              <span className="text-gray-500">Tema:</span>{' '}
-              {settings.theme === 'dark' ? '🌙 Tamna' : '☀️ Svetla'}
+              <span className="text-gray-500">Opis:</span> {settings.siteDescription}
             </div>
             <div>
-              <span className="text-gray-500">Stavki po strani:</span> {settings.itemsPerPage}
+              <span className="text-gray-500">Email:</span> {settings.contactEmail}
+            </div>
+            <div>
+              <span className="text-gray-500">Telefon:</span> {settings.contactPhoneNumber}
             </div>
           </div>
         </div>
@@ -208,58 +203,22 @@ export default function SimpleSettingsForm({ initialData }: Props) {
               />
             </div>
           </div>
-        </div>
-
-        {/* Podešavanja prikaza */}
-        <div className="space-y-4 pt-4 border-t border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Podešavanja prikaza</h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tema</label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleChange('theme', 'light')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${
-                    settings.theme === 'light'
-                      ? 'bg-blue-50 border-blue-500 text-blue-700'
-                      : 'border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <Sun size={18} />
-                  Svetla
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleChange('theme', 'dark')}
-                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg border ${
-                    settings.theme === 'dark'
-                      ? 'bg-blue-50 border-blue-500 text-blue-700'
-                      : 'border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <Moon size={18} />
-                  Tamna
-                </button>
-              </div>
-            </div>
-          </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Broj stavki po strani
-            </label>
-            <select
-              value={settings.itemsPerPage}
-              onChange={e => handleChange('itemsPerPage', parseInt(e.target.value))}
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Kontakt telefon</label>
+            <div className="relative">
+              <Phone
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+              <input
+                type="email"
+                value={settings.contactPhoneNumber}
+                onChange={e => handleChange('contactPhoneNumber', e.target.value)}
+                className="w-full pl-10 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="38164123123"
+              />
+            </div>
           </div>
         </div>
 

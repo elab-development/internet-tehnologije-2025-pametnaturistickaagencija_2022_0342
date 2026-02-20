@@ -2,12 +2,13 @@
 import fs from 'fs'
 import path from 'path'
 
-const settingsPath = path.join(process.cwd(), 'settings.json')
+const settingsPath = path.join(process.cwd(), '../backend/settings.json')
 
 export function getSettings() {
   try {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf8')
+
       return JSON.parse(data)
     }
   } catch (error) {
@@ -19,7 +20,7 @@ export function getSettings() {
     siteName: 'SmartTurist',
     siteDescription: 'Opis sajta',
     itemsPerPage: 10,
-    theme: 'light',
     contactEmail: 'kontakt@example.com',
+    contactPhoneNumber: '38164123123',
   }
 }

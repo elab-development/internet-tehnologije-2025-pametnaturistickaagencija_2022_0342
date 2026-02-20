@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 
-export function Footer() {
+export function Footer({ email, phoneNumber }: { email: string; phoneNumber: string }) {
   const year = new Date().getFullYear()
 
   return (
@@ -60,8 +60,8 @@ export function Footer() {
         <div>
           <h4 className="text-white font-medium mb-3">Kontakt</h4>
           <ul className="space-y-2 text-sm">
-            <li>Email: support@travel-ai.com</li>
-            <li>Telefon: +381 XX XXX XXXX</li>
+            <li>{email}</li>
+            <li>{phoneNumber}</li>
             <li>Beograd, Srbija</li>
           </ul>
         </div>
