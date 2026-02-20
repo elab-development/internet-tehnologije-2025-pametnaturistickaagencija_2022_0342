@@ -7,20 +7,32 @@ export interface SearchParams {
   preferences?: string[]
 }
 
+// U lib/types/search.ts ili gde god imate interfejse
 export interface TravelOffer {
-  id: number
+  id?: number
   name: string
-  description: string
+  description?: string
   price: number
-  type: 'HOTEL' | 'FLIGHT' | 'PACKAGE' | 'OTHER'
+  offerType: 'HOTEL' | 'FLIGHT' | 'PACKAGE' | 'OTHER'
   location: string
-  distance: number
+  distance?: number
   transportation: string[]
   amenities: string[]
   rating: number
   imageUrl: string
   siteLinks: Record<string, string>
-  aiExplanation: string
+  aiExplanation?: string
+  // Dodajte ova polja ako ih koristite iz backend-a
+  accommodation?: {
+    name: string
+    type: string
+    stars?: number | null
+    rating: number
+    distance_from_center_km?: number | null
+  }
+  source?: {
+    link: string
+  }
 }
 
 export interface AIResponse {
