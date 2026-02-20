@@ -11,9 +11,12 @@ import { AIChat } from '@/app/components/chat/AIChat'
 import { Alert } from '@/app/components/ui/Alert'
 import { searchTravelOffers } from '@/lib/api/ai-search'
 import { LoadingSpinner } from '@/app/components/ui/LoadingSpinner'
+import { useRouter } from 'next/navigation'
 
 export default function HomePage() {
   const { user, logout } = useAuth()
+
+  const router = useRouter()
 
   const getWelcomeMessage = () => {
     if (!user) return 'Dobrodošli na SmartTurist Platformu'
@@ -64,6 +67,10 @@ export default function HomePage() {
               <strong>Ime:</strong> {user.firstName}
             </p>
           )}
+
+          <Button variant="primary" className="mt-3" onClick={() => router.push('/saved')}>
+            Sačuvane ponude
+          </Button>
         </div>
 
         {user.role === 'ADMIN' && (
@@ -125,32 +132,53 @@ export default function HomePage() {
     }
 
     try {
-      // TODO: Implementirati pravi API poziv za čuvanje ponude
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/offers/save`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-          body: JSON.stringify({
-            name: offer.name,
-            price: offer.price,
-            type: offer.type,
-            siteLinks: offer.siteLinks,
-          }),
-        },
-      )
-
-      if (response.ok) {
-        alert(`✅ Ponuda "${offer.name}" je sačuvana u vašoj listi!`)
-      } else {
-        throw new Error('Failed to save offer')
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+      const token = localStorage.getItem('token')
+      if (!token) {
+        alert('Niste ulogovani (nema tokena).')
+        return
       }
-    } catch (error) {
+
+      const name = offer?.accommodation?.name
+      const offerType = offer?.accommodation?.type // npr "hotel"
+      const price = offer?.price?.total // broj
+      const siteLinks = offer?.siteLinks?.length
+        ? offer.siteLinks
+        : offer?.source?.link
+          ? [offer.source.link]
+          : []
+
+      if (!name || !offerType || price === undefined || price === null) {
+        console.log('SAVE OFFER missing fields:', { name, offerType, price, siteLinks, offer })
+        alert('Ponuda nema sve podatke (name/offerType/price).')
+        return
+      }
+
+      const response = await fetch(`${API_URL}/saved-offers`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name,
+          price, // npr 1800
+          siteLinks, // npr ["https://..."]
+          offerType, // "hotel"
+          date: new Date().toISOString(), // ili offer.checkIn/Out ako imaš
+        }),
+      })
+
+      const json = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(json?.message || json?.error || 'Failed to save offer')
+      }
+
+      alert(`✅ Ponuda "${name}" je sačuvana u vašoj listi!`)
+    } catch (error: any) {
       console.error('Save offer error:', error)
-      alert(`Ponuda "${offer.name}" je sačuvana (mock)!`)
+      alert(error?.message || 'Greška pri čuvanju ponude')
     }
   }
 
