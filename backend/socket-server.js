@@ -10,20 +10,150 @@ const { GoogleGenAI } = require('@google/genai')
 const { z } = require('zod')
 const { zodToJsonSchema } = require('zod-to-json-schema')
 
-const { getOrCreateChat, addMessage, mergeCriteria, getState } = require('./chatStore.db')
+const { getOrCreateChat, addMessage, getState } = require('./chatStore.db')
+
+function wantsCheaper(text) {
+  const t = String(text || '').toLowerCase()
+  return (
+    t.includes('jeftin') ||
+    t.includes('povoljn') ||
+    t.includes('niž') ||
+    t.includes('preskupo') ||
+    t.includes('manji budžet')
+  )
+}
+
+function extractNewBudgetFromReply(reply) {
+  const s = String(reply || '')
+
+  // 1) prioritet: "novi budžet je 1600"
+  let m = s.match(/novi\s+budžet[^0-9]{0,20}(\d{2,6})/i)
+  if (m) return Number(m[1])
+
+  // 2) "budžet ... 1600 eur/€"
+  m = s.match(/budžet[^0-9]{0,20}(\d{2,6})\s*(eur|evra|€)\b/i)
+  if (m) return Number(m[1])
+
+  // 3) bilo koji iznos sa valutom "1600€" / "1600 eur"
+  m = s.match(/(\d{2,6})\s*(eur|evra|€)\b/i)
+  if (m) return Number(m[1])
+
+  // 4) fallback: uzmi najveći broj u tekstu (ignoriši 20%)
+  const nums = (s.match(/\d{2,6}/g) || []).map(Number).filter(Number.isFinite)
+  if (nums.length === 0) return null
+
+  // ignoriši 20 baš kad postoji 20%
+  const hasPercent20 = /20\s*%/.test(s)
+  const filtered = hasPercent20 ? nums.filter(n => n !== 20) : nums
+
+  return filtered.length ? Math.max(...filtered) : Math.max(...nums)
+}
+
+function reduceBudget20(baseBudget) {
+  const b = Number(baseBudget)
+  if (!Number.isFinite(b) || b <= 0) return null
+  return Math.max(50, Math.round(b * 0.8))
+}
+
+function normalizeBudget(b, baseBudget) {
+  const n = Number(b)
+  if (!Number.isFinite(n)) return null
+
+  // ako je neko poslao 20 (procenat), a base je 2000, očigledno je pogrešno
+  if (n > 0 && baseBudget && n < baseBudget * 0.2) {
+    return null
+  }
+
+  // minimum budžet u eur (da izbegneš 20, 30, itd)
+  if (n < 50) return null
+
+  return n
+}
+
+
+const serpapiTravelSearch = require('./src/services/serpapiTravelSearch')
+
+function parseCriteriaUpdate(update) {
+  if (!update) return {}
+
+  if (typeof update === 'string') {
+    const s = update.trim()
+    const start = s.indexOf('{')
+    const end = s.lastIndexOf('}')
+    if (start !== -1 && end !== -1 && end > start) {
+      try {
+        const obj = JSON.parse(s.slice(start, end + 1))
+        if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj
+      } catch {}
+    }
+    if (s.includes('\n')) {
+      return parseCriteriaUpdate(
+        s
+          .split('\n')
+          .map(x => x.replace(/^criteria_update\s*:\s*/i, '').trim())
+          .filter(Boolean),
+      )
+    }
+    return {}
+  }
+
+  if (Array.isArray(update)) {
+    const obj = {}
+    for (const item of update) {
+      if (typeof item !== 'string') continue
+      const s = item.trim()
+      if (!s) continue
+
+      let key, valueRaw
+      if (s.includes('=')) {
+        ;[key, ...valueRaw] = s.split('=')
+      } else if (s.includes(':')) {
+        ;[key, ...valueRaw] = s.split(':')
+      } else continue
+
+      key = key.trim()
+      valueRaw = valueRaw.join(':').trim()
+
+      let v = valueRaw.toLowerCase()
+
+      if (v.match(/\d+/) && v.includes('dan')) v = Number(v.match(/\d+/)[0])
+      else if (v.match(/\d+/) && (v.includes('eur') || v.includes('€') || v.includes('evra')))
+        v = Number(v.match(/\d+/)[0])
+      else if (!isNaN(Number(v))) v = Number(v)
+
+      if (key === 'duration') key = 'days'
+      if (key === 'budget') key = 'budget_eur'
+      if (key === 'interests' && typeof v === 'string') {
+        v = v
+          .split(/,|and|i|&/gi)
+          .map(x => x.trim())
+          .filter(Boolean)
+      }
+
+      obj[key] = v
+    }
+    return obj
+  }
+
+  if (typeof update === 'object') return update
+  return {}
+}
 
 const TravelChatSchema = z.object({
   reply: z.string(),
   criteria_update: z
-    .object({
-      destination: z.string().optional(),
-      from: z.string().optional(), // YYYY-MM-DD
-      to: z.string().optional(), // YYYY-MM-DD
-      budget: z.coerce.number().optional(),
-      interests: z.array(z.string()).optional(),
-      type: z.string().optional(),
-      lang: z.enum(['sr', 'en']).optional(),
-    })
+    .union([
+      z.object({
+        destination: z.string().optional(),
+        from: z.string().optional(),
+        to: z.string().optional(),
+        budget: z.coerce.number().optional(),
+        interests: z.array(z.string()).optional(),
+        type: z.string().optional(),
+        lang: z.enum(['sr', 'en']).optional(),
+      }),
+      z.string(), 
+    ])
     .nullish(),
   filters_update: z
     .object({
@@ -44,7 +174,7 @@ const JWT_SECRET = process.env.JWT_SECRET || ''
 
 const RATE_LIMIT_MS = Number(process.env.CHAT_RATE_LIMIT_MS || 1200)
 const MAX_MESSAGE_CHARS = Number(process.env.CHAT_MAX_MESSAGE_CHARS || 1500)
-const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS || 30000)
+const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS || 30000) 
 
 const app = express()
 app.use(cors({ origin: SOCKET_ORIGIN }))
@@ -109,113 +239,11 @@ async function ensureChatAndOwnership(chatId, userId) {
   await getOrCreateChat(chatId, userId)
 }
 
-function parseCriteriaUpdate(update) {
-  if (!update) return {}
-
-  if (typeof update === 'string') {
-    const s = update.trim()
-    const start = s.indexOf('{')
-    const end = s.lastIndexOf('}')
-    if (start !== -1 && end !== -1 && end > start) {
-      try {
-        const obj = JSON.parse(s.slice(start, end + 1))
-        if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj
-      } catch {}
-    }
-    if (s.includes('\n')) {
-      return parseCriteriaUpdate(
-        s
-          .split('\n')
-          .map(x => x.replace(/^criteria_update\s*:\s*/i, '').trim())
-          .filter(Boolean),
-      )
-    }
-    return {}
-  }
-
-  if (Array.isArray(update)) {
-    const obj = {}
-    for (const item of update) {
-      if (typeof item !== 'string') continue
-      const s = item.trim()
-      if (!s) continue
-
-      let key, valueRaw
-      if (s.includes('=')) {
-        ;[key, ...valueRaw] = s.split('=')
-      } else if (s.includes(':')) {
-        ;[key, ...valueRaw] = s.split(':')
-      } else continue
-
-      key = key.trim()
-      valueRaw = valueRaw.join(':').trim()
-
-      let v = valueRaw.toLowerCase()
-
-      if (v.match(/\d+/) && v.includes('dan')) v = Number(v.match(/\d+/)[0])
-      else if (v.match(/\d+/) && (v.includes('eur') || v.includes('€') || v.includes('evra')))
-        v = Number(v.match(/\d+/)[0])
-      else if (!isNaN(Number(v))) v = Number(v)
-
-      if (key === 'duration') key = 'days'
-      if (key === 'interests' && typeof v === 'string') {
-        v = v
-          .split(/,|and|i|&/gi)
-          .map(x => x.trim())
-          .filter(Boolean)
-      }
-
-      obj[key] = v
-    }
-    return obj
-  }
-
-  if (typeof update === 'object') return update
-  return {}
-}
-
-function normalizeGeminiParsed(parsed, raw) {
-  const followUp = Array.isArray(raw?.follow_up_questions) ? raw.follow_up_questions : []
-  let criteriaUpdate = parseCriteriaUpdate(raw?.criteria_update)
-
-  if (!criteriaUpdate || Object.keys(criteriaUpdate).length === 0) {
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const copy = { ...parsed }
-      delete copy.reply
-      delete copy.criteria_update
-      delete copy.follow_up_questions
-      criteriaUpdate = parseCriteriaUpdate(copy)
-    } else {
-      criteriaUpdate = {}
-    }
-  }
-
-  const reply =
-    typeof raw?.reply === 'string' && raw.reply.trim()
-      ? raw.reply.trim()
-      : 'Vazi, azurirao sam kriterijume.'
-
-  return { reply, criteria_update: criteriaUpdate, follow_up_questions: followUp }
-}
-
-function extractBudgetFromText(text) {
-  const s = String(text || '')
-  // hvata "200", "200€", "200 eur", "200 evra"
-  const m =
-    s.match(/(?:budžet|budget)[^\d]{0,20}(\d{2,6})\s*(?:€|eur|evra)?/i) ||
-    s.match(/(\d{2,6})\s*(?:€|eur|evra)\b/i)
-  if (!m) return null
-  const n = Number(m[1])
-  return Number.isFinite(n) ? n : null
-}
-
 function toYmd(s) {
-  const t = String(s || '').trim()
-  return t
+  return String(s || '').trim()
 }
 
 function summarizeOffersForAi(offers = []) {
-  // Nemoj slati sve — samo bitno, max 8-12 ponuda
   return offers.slice(0, 10).map(o => ({
     name: o?.accommodation?.name ?? o?.name,
     type: o?.accommodation?.type ?? o?.type,
@@ -240,6 +268,10 @@ function applyCriteriaUpdateToSearchParams(base, update) {
     endDate: typeof u.to === 'string' && u.to.trim() ? toYmd(u.to) : base.endDate,
     budget: typeof u.budget === 'number' ? u.budget : base.budget,
     preferences: Array.isArray(u.interests) ? u.interests : base.preferences,
+
+    
+    passengers: base.passengers,
+    fromCity: base.fromCity,
   }
 }
 
@@ -248,7 +280,6 @@ function applyFiltersUpdate(offers, filters) {
 
   let out = offers
 
-  // betterReviews => sortiraj po rating desc (ako postoji)
   if (filters.betterReviews) {
     out = [...out].sort((a, b) => {
       const ra = a?.accommodation?.rating ?? a?.rating ?? 0
@@ -257,7 +288,6 @@ function applyFiltersUpdate(offers, filters) {
     })
   }
 
-  // mustHaveAmenities => filter po amenity (ako u offeru postoji amenities list)
   if (Array.isArray(filters.mustHaveAmenities) && filters.mustHaveAmenities.length > 0) {
     const want = filters.mustHaveAmenities.map(x => String(x).toLowerCase())
     out = out.filter(o => {
@@ -268,7 +298,6 @@ function applyFiltersUpdate(offers, filters) {
     })
   }
 
-  // priceRange => filter po total price ako postoji
   if (Array.isArray(filters.priceRange) && filters.priceRange.length === 2) {
     const [min, max] = filters.priceRange
     out = out.filter(o => {
@@ -280,6 +309,7 @@ function applyFiltersUpdate(offers, filters) {
 
   return out
 }
+
 
 const ChatMessagePayloadSchema = z.object({
   chatId: z.coerce.number(),
@@ -293,6 +323,9 @@ const ChatMessagePayloadSchema = z.object({
     budget: z.coerce.number(),
     passengers: z.coerce.number(),
     preferences: z.array(z.string()).optional(),
+
+    
+    fromCity: z.string().optional(),
   }),
 
   currentFilters: z.any().optional(),
@@ -300,8 +333,6 @@ const ChatMessagePayloadSchema = z.object({
 })
 
 io.on('connection', socket => {
-  console.log('socket connected', socket.id)
-
   socket.on('chat_join', async payload => {
     try {
       const chatId = safeInt(payload?.chatId)
@@ -309,8 +340,7 @@ io.on('connection', socket => {
       if (!chatId || !userId) throw new Error('chatId and userId required')
       await ensureChatAndOwnership(chatId, userId)
       socket.join(String(chatId))
-      const st = await getState(chatId, 50)
-      socket.emit('chat_state', { ...st, criteria: pickCoreCriteria(st.criteria) })
+      socket.emit('chat_state', await getState(chatId, 50))
     } catch (e) {
       socket.emit('chat_error', { message: 'Join failed', details: e.message })
     }
@@ -331,12 +361,15 @@ io.on('connection', socket => {
       const currentFilters = parsedPayload.currentFilters || {}
       const currentOffers = parsedPayload.currentOffers || []
 
+      
+      const fromCity = baseSearchParams.fromCity || 'Beograd'
+      const adults = Number(baseSearchParams.passengers) || 2
+
       await ensureChatAndOwnership(chatId, userId)
       await addMessage(chatId, 'user', text)
 
       io.to(String(chatId)).emit('chat_response_start', { chatId })
 
-      // ✅ AI prompt (SK4 korak 4-5)
       const aiPrompt = `
 Ti si turistički AI asistent. Tvoj zadatak: fino podešavanje kriterijuma pretrage.
 
@@ -347,6 +380,10 @@ Vrati ISKLJUČIVO jedan JSON objekat po šemi:
   "filters_update": { "priceRange"?, "mustHaveAmenities"?, "betterReviews"?, "options"?, "travelType"? },
   "follow_up_questions": ["string"]?
 }
+
+Kontekst:
+- Polazak (fromCity): ${fromCity}
+- Broj putnika (passengers/adults): ${adults}
 
 PRAVILA:
 - criteria_update služi samo da promeni parametre pretrage (destination/from/to/budget/interests/type/lang).
@@ -365,6 +402,10 @@ ${JSON.stringify(summarizeOffersForAi(currentOffers))}
 
 Korisnik kaže:
 ${text}
+
+VAŽNO:
+- Ako u "reply" napišeš da menjaš budžet/datume/destinaciju, MORAŠ to upisati i u criteria_update.
+- Ne piši "smanjujem budžet" ako criteria_update.budget nije postavljen.
 `
 
       const stream = await ai.models.generateContentStream({
@@ -384,49 +425,167 @@ ${text}
           io.to(String(chatId)).emit('chat_response_chunk', { chatId, delta })
         }
       }
+      console.log(full)
 
       let aiJson = {}
       try {
         aiJson = JSON.parse(full)
+        function normalizeFiltersUpdate(fu) {
+          if (!fu) return {}
+          if (typeof fu === 'object' && !Array.isArray(fu)) return fu
+
+          
+          if (Array.isArray(fu)) {
+            const items = fu
+              .map(String)
+              .map(s => s.trim())
+              .filter(Boolean)
+
+            
+            return {
+              mustHaveAmenities: items,
+            }
+          }
+
+        
+          if (typeof fu === 'string') {
+            const s = fu.trim()
+            if (!s) return {}
+            try {
+              const parsed = JSON.parse(s)
+              if (Array.isArray(parsed)) return { mustHaveAmenities: parsed.map(String) }
+              if (parsed && typeof parsed === 'object') return parsed
+            } catch {}
+            return {
+              mustHaveAmenities: s
+                .split(/,|\n|;|•|-|\u2022/)
+                .map(x => x.trim())
+                .filter(Boolean),
+            }
+          }
+
+          return {}
+        }
+
+       
+        if (aiJson && typeof aiJson === 'object') {
+          const fu = aiJson.follow_up_questions
+
+          if (typeof fu === 'string') {
+           
+            const s = fu.trim()
+
+            
+            if (s.startsWith('[') && s.endsWith(']')) {
+              try {
+                const parsed = JSON.parse(s)
+                aiJson.follow_up_questions = Array.isArray(parsed) ? parsed.map(String) : [s]
+              } catch {
+                aiJson.follow_up_questions = s
+                  .split(/\n|;|•|-|\u2022|,/)
+                  .map(x => x.trim())
+                  .filter(Boolean)
+              }
+            } else {
+              aiJson.follow_up_questions = s
+                .split(/\n|;|•|-|\u2022|,/)
+                .map(x => x.trim())
+                .filter(Boolean)
+            }
+          } else if (fu == null) {
+            aiJson.follow_up_questions = []
+          }
+        }
+        
+        if (aiJson && typeof aiJson === 'object') {
+          if (typeof aiJson.criteria_update === 'string') {
+            aiJson.criteria_update = parseCriteriaUpdate(aiJson.criteria_update)
+          }
+          if (typeof aiJson.filters_update === 'string') {
+            aiJson.filters_update = parseCriteriaUpdate(aiJson.filters_update)
+          }
+        }
+
         if (Array.isArray(aiJson)) aiJson = aiJson.find(x => x && typeof x === 'object') || {}
         if (aiJson && typeof aiJson === 'object' && aiJson.criteria_update === null)
           aiJson.criteria_update = {}
         if (aiJson && typeof aiJson === 'object' && aiJson.filters_update === null)
           aiJson.filters_update = {}
       } catch {
-        // Alt 7.1
         io.to(String(chatId)).emit('chat_error', {
           message: 'Molimo formulišite zahtev drugačije.',
         })
         return
       }
 
-      const aiOut = TravelChatSchema.parse(aiJson)
-      const criteriaUpdate = aiOut.criteria_update || {}
-      const filtersUpdate = aiOut.filters_update || {}
+      if (aiJson && typeof aiJson === 'object') {
+        aiJson.filters_update = normalizeFiltersUpdate(aiJson.filters_update)
+      }
 
-      // ✅ Primeni criteria_update na SearchParams
+      const aiOut = TravelChatSchema.parse(aiJson)
+      const criteriaUpdate =
+        aiOut.criteria_update &&
+        typeof aiOut.criteria_update === 'object' &&
+        !Array.isArray(aiOut.criteria_update)
+          ? { ...aiOut.criteria_update }
+          : {}
+
+      const filtersUpdate =
+        aiOut.filters_update &&
+        typeof aiOut.filters_update === 'object' &&
+        !Array.isArray(aiOut.filters_update)
+          ? aiOut.filters_update
+          : {}
+
+      
+      if (
+        wantsCheaper(text) &&
+        (criteriaUpdate.budget == null || !Number.isFinite(Number(criteriaUpdate.budget)))
+      ) {
+        
+        const fromReply = extractNewBudgetFromReply(aiOut.reply)
+        const forced = fromReply ?? reduceBudget20(baseSearchParams.budget)
+
+        if (forced != null) {
+          const fromReplyRaw = extractNewBudgetFromReply(aiOut.reply)
+          const fromReply = normalizeBudget(fromReplyRaw, baseSearchParams.budget)
+
+          const forced = fromReply ?? reduceBudget20(baseSearchParams.budget)
+          criteriaUpdate.budget = forced
+        }
+      }
+
+      console.log(
+        '[ENFORCE] baseBudget=',
+        baseSearchParams.budget,
+        'criteriaUpdate=',
+        criteriaUpdate,
+      )
+
+     
       const updatedSearchParams = applyCriteriaUpdateToSearchParams(
         baseSearchParams,
         criteriaUpdate,
       )
+      console.log('[UPDATED] updatedSearchParams.budget=', updatedSearchParams.budget)
 
-      // ✅ Pozovi REALNU pretragu (SK4 korak 5-6)
+      const lang = (criteriaUpdate.lang || 'sr').toLowerCase()
+
+      
       const searchResult = await serpapiTravelSearch({
         destination: updatedSearchParams.destination,
         from: updatedSearchParams.startDate,
         to: updatedSearchParams.endDate,
         budget: updatedSearchParams.budget,
-        interests: Array.isArray(updatedSearchParams.preferences)
-          ? updatedSearchParams.preferences.join(',')
-          : '',
-        type: criteriaUpdate.type || '',
-        lang: (criteriaUpdate.lang || 'sr').toLowerCase(),
+
+        
+        adults: Number(updatedSearchParams.passengers) || adults, // hoteli
+        fromCity: updatedSearchParams.fromCity || fromCity, // letovi
+        lang,
       })
 
       const offers = Array.isArray(searchResult?.offers) ? searchResult.offers : []
 
-      // Alt 7.2
       if (offers.length === 0) {
         await addMessage(chatId, 'assistant', 'Nema ponuda koje odgovaraju vašim kriterijumima.')
         io.to(String(chatId)).emit('chat_response_done', {
@@ -442,12 +601,11 @@ ${text}
         return
       }
 
-      // ✅ Opcionalno: primeni filters_update (sort/filter)
+      
       const finalOffers = applyFiltersUpdate(offers, filtersUpdate)
 
       await addMessage(chatId, 'assistant', aiOut.reply)
 
-      // ✅ SK4 korak 7: vrati i poruku i ponude
       io.to(String(chatId)).emit('chat_response_done', {
         chatId,
         reply: aiOut.reply,
