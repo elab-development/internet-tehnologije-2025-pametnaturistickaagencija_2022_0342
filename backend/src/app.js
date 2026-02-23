@@ -1,6 +1,9 @@
 const express = require('express')
 const cors = require('cors')
 
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./swagger");
+
 const app = express()
 
 app.use(
@@ -11,6 +14,24 @@ app.use(
 )
 
 app.use(express.json())
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+app.get("/swagger.json", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.send(swaggerSpec);
+});
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: Provera rada servera
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Server radi
+ */
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
 

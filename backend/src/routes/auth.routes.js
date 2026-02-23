@@ -13,7 +13,85 @@ function signToken(user) {
   );
 }
 
-
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Registracija korisnika
+ *     description: Kreira novog korisnika i vraća JWT token.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password, firstName, lastName]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: user@test.com
+ *               password:
+ *                 type: string
+ *                 example: test123
+ *               firstName:
+ *                 type: string
+ *                 example: Katarina
+ *               lastName:
+ *                 type: string
+ *                 example: Rajic
+ *     responses:
+ *       201:
+ *         description: Uspešna registracija
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: number
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       example: user@test.com
+ *                     firstName:
+ *                       type: string
+ *                       example: Katarina
+ *                     lastName:
+ *                       type: string
+ *                       example: Rajic
+ *                     role:
+ *                       type: string
+ *                       example: USER
+ *       400:
+ *         description: Nedostaju obavezna polja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: email, password, firstName, lastName su obavezni.
+ *       409:
+ *         description: Email je već registrovan
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Email je već registrovan.
+ *       500:
+ *         description: Interna greška servera
+ */
 router.post("/register", async (req, res) => {
   const { email, password, firstName, lastName } = req.body;
 
@@ -46,7 +124,79 @@ router.post("/register", async (req, res) => {
   });
 });
 
-
+/**
+ * @swagger
+ * /api/auth/login:
+ *   post:
+ *     summary: Prijava korisnika
+ *     description: Proverava kredencijale i vraća JWT token.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: user@test.com
+ *               password:
+ *                 type: string
+ *                 example: test123
+ *     responses:
+ *       200:
+ *         description: Uspešna prijava
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: number
+ *                       example: 1
+ *                     email:
+ *                       type: string
+ *                       example: user@test.com
+ *                     firstName:
+ *                       type: string
+ *                       example: Katarina
+ *                     lastName:
+ *                       type: string
+ *                       example: Rajic
+ *                     role:
+ *                       type: string
+ *                       example: USER
+ *       400:
+ *         description: Nedostaju email ili password
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: email i password su obavezni.
+ *       401:
+ *         description: Pogrešan email ili lozinka
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Pogrešan email ili lozinka.
+ *       500:
+ *         description: Interna greška servera
+ */
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -72,7 +222,25 @@ router.post("/login", async (req, res) => {
   });
 });
 
-
+/**
+ * @swagger
+ * /api/auth/logout:
+ *   post:
+ *     summary: Odjava korisnika
+ *     description: Logout je logički — token se briše na klijentu.
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Uspešan logout
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Logout uspešan (obrisati token na klijentu).
+ */
 router.post("/logout", (req, res) => {
   return res.json({ message: "Logout uspešan (obrisati token na klijentu)." });
 });
