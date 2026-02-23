@@ -6,7 +6,6 @@ import DashboardStats from '@/app/components/admin/DashboardStats'
 import RecentUsersTable from '@/app/components/admin/RecentUsersTable'
 import OfferTypeChart from '@/app/components/admin/OfferTypeChart'
 import DailyActivityChart from '@/app/components/admin/DailyActivityChart'
-import QuickActions from '@/app/components/admin/QuickActions'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
