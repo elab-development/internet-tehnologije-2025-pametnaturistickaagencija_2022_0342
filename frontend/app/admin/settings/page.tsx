@@ -2,7 +2,8 @@
 import { headers } from 'next/headers'
 import SimpleSettingsForm from '@/app/components/admin/SimpleSettingsForm'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
+const API_URL = process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
 export default async function AdminSettingsPage() {
   // Dinamički base URL
