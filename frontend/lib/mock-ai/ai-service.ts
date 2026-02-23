@@ -5,7 +5,6 @@ const mockOffers: TravelOffer[] = [
   {
     id: 1,
     name: 'Hotel Plaza, Budva',
-    date: new Date(),
     description: 'Luksuzni hotel sa pogledom na more, all inclusive',
     price: 450,
     offerType: 'HOTEL',
@@ -22,7 +21,6 @@ const mockOffers: TravelOffer[] = [
   {
     id: 2,
     name: 'Avionska karta Beograd-Solun',
-    date: new Date(),
     description: 'Direktan let, prtljag uključen',
     price: 180,
     offerType: 'FLIGHT',
@@ -39,7 +37,6 @@ const mockOffers: TravelOffer[] = [
   {
     id: 3,
     name: 'Paket aranžman Hrvatska',
-    date: new Date(),
     description: '7 noćenja + polupansion + izleti',
     price: 650,
     offerType: 'PACKAGE',
@@ -55,7 +52,6 @@ const mockOffers: TravelOffer[] = [
   {
     id: 4,
     name: 'Vikend u Sofiji',
-    date: new Date(),
     description: 'City break sa turističkim vodičem',
     price: 290,
     offerType: 'PACKAGE',
@@ -71,7 +67,6 @@ const mockOffers: TravelOffer[] = [
   {
     id: 5,
     name: 'Hotel Montenegro Beach',
-    date: new Date(),
     description: 'First line, plaža 50m od hotela',
     price: 520,
     offerType: 'HOTEL',
