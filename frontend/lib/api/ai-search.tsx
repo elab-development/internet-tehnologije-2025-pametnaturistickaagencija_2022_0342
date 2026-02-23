@@ -16,6 +16,8 @@ export interface Price {
   total: number | null
   currency: string
   per_night: number | null
+  before_taxes_fees: number
+  per_person: string
 }
 
 export interface TransportBase {
@@ -32,6 +34,11 @@ export interface Accommodation {
   stars: number | null
   rating: number | null
   distance_from_center_km: number | null
+  deal: string
+  reviews_count: number
+  check_in_time: string
+  check_out_time: string
+  amenities: string[]
 }
 
 export interface HotelOffer {
@@ -41,6 +48,7 @@ export interface HotelOffer {
   availability: any
   source: OfferSource
   ai_explanation: string | null
+  media: { thumbnail: string }
 }
 
 /** Flight */

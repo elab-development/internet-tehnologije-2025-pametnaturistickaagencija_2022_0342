@@ -44,7 +44,7 @@ export function initSocket(config: SocketConfig = {}): Promise<Socket> {
 
       // Join chat if chatId is provided
       if (config.chatId && config.userId) {
-        socket.emit('chat_join', {
+        socket?.emit('chat_join', {
           chatId: config.chatId,
           userId: config.userId,
         })
