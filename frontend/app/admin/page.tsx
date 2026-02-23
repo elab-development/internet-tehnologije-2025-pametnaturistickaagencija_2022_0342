@@ -22,7 +22,7 @@ type DashboardResponse = {
     usersByRole: Array<{ role: string; _count: number | { _all?: number } }>
     offerTypeStats: Array<{ offerType: string; _count: number | { _all?: number } }>
     recentUsers: any[]
-    dailyStats: Array<{ date: string; count: number }>
+    dailyStats: Array<{ date: Date; count: number }>
   }
 }
 
