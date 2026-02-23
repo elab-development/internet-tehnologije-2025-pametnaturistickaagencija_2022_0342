@@ -7,9 +7,10 @@ interface ChatInputProps {
   onSendMessage: (message: string) => void
   isLoading: boolean
   placeholder?: string
+  disabled: boolean
 }
 
-export function ChatInput({ onSendMessage, isLoading, placeholder }: ChatInputProps) {
+export function ChatInput({ onSendMessage, isLoading, placeholder, disabled }: ChatInputProps) {
   const [message, setMessage] = useState('')
 
   const handleSubmit = () => {
