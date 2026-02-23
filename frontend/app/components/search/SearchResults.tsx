@@ -150,7 +150,7 @@ export function SearchResults({
                     {Array.from({ length: 5 }).map((_, i) => (
                       <span
                         key={i}
-                        className={`text-sm ${i + 1 < acc.rating ? 'text-yellow-500' : 'text-gray-300'}`}
+                        className={`text-sm ${i + 1 < (acc?.rating ? acc?.rating : 3) ? 'text-yellow-500' : 'text-gray-300'}`}
                       >
                         ★
                       </span>
