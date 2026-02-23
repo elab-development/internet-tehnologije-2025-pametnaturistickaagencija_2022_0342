@@ -55,7 +55,7 @@ export async function createChat(chatName: string): Promise<any> {
 }
 
 // Nova socket-based funkcija za SK4 scenarij
-export function setupChatSocket(config: SocketConfig): Promise<void> {
+export function setupChatSocket(config: SocketConfig) {
   return initSocket(config)
 }
 
