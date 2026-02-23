@@ -6,7 +6,55 @@ const router = express.Router();
 
 router.use(auth);
 
-
+/**
+ * @swagger
+ * /api/messages:
+ *   get:
+ *     summary: Lista poruka za određeni chat
+ *     description: Vraća sve poruke za dati chat (samo ako chat pripada ulogovanom korisniku).
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: chatId
+ *         required: true
+ *         description: ID chat sesije
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     responses:
+ *       200:
+ *         description: Lista poruka
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *       400:
+ *         description: chatId nije prosleđen
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: chatId is required
+ *       401:
+ *         description: Neautorizovan pristup
+ *       404:
+ *         description: Chat ne postoji
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Chat not found
+ */
 router.get("/", async (req, res, next) => {
   try {
     const userId = Number(req.user.userId);
@@ -28,7 +76,65 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-
+/**
+ * @swagger
+ * /api/messages:
+ *   post:
+ *     summary: Kreiranje nove poruke
+ *     description: Kreira novu poruku u okviru chat sesije (samo za vlasnika chata).
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [chatId, senderType, text]
+ *             properties:
+ *               chatId:
+ *                 type: integer
+ *                 example: 1
+ *               senderType:
+ *                 type: string
+ *                 example: USER
+ *               text:
+ *                 type: string
+ *                 example: Zdravo, želim plan putovanja za Rim.
+ *               flag:
+ *                 type: boolean
+ *                 example: false
+ *     responses:
+ *       201:
+ *         description: Poruka uspešno kreirana
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       400:
+ *         description: Nedostaju obavezna polja
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: chatId, senderType, text are required
+ *       401:
+ *         description: Neautorizovan pristup
+ *       404:
+ *         description: Chat ne postoji
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Chat not found
+ */
 router.post("/", async (req, res, next) => {
   try {
     const userId = Number(req.user.userId);
@@ -44,7 +150,7 @@ router.post("/", async (req, res, next) => {
     const message = await prisma.message.create({
       data: {
         chatId: Number(chatId),
-        senderType, 
+        senderType,
         text,
         flag: flag ?? false,
       },

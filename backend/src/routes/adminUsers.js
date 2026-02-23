@@ -4,6 +4,97 @@ const { PrismaClient } = require('@prisma/client')
 
 const prisma = new PrismaClient()
 
+/**
+ * @swagger
+ * /api/admin/users:
+ *   get:
+ *     summary: Admin lista korisnika (paginacija, pretraga, filtriranje, sortiranje)
+ *     description: Vraća paginiranu listu korisnika sa statistikama (broj chatova, broj sačuvanih ponuda i poslednja aktivnost).
+ *     tags: [Admin]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         description: Broj strane (1+)
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *       - in: query
+ *         name: limit
+ *         description: Broj rezultata po strani (1-100)
+ *         schema:
+ *           type: integer
+ *           example: 10
+ *       - in: query
+ *         name: search
+ *         description: Tekst pretrage (firstName, lastName, email, phone)
+ *         schema:
+ *           type: string
+ *           example: "katarina"
+ *       - in: query
+ *         name: role
+ *         description: Filter po roli (npr. USER, ADMIN, GUEST)
+ *         schema:
+ *           type: string
+ *           example: "USER"
+ *       - in: query
+ *         name: sortBy
+ *         description: Polje za sortiranje
+ *         schema:
+ *           type: string
+ *           enum: [id, firstName, lastName, email, role, createdAt]
+ *           example: createdAt
+ *       - in: query
+ *         name: sortOrder
+ *         description: Smer sortiranja
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           example: desc
+ *     responses:
+ *       200:
+ *         description: Uspešno vraćena lista korisnika
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         description: Korisnik sa stats poljem
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                           example: 1
+ *                         limit:
+ *                           type: integer
+ *                           example: 10
+ *                         total:
+ *                           type: integer
+ *                           example: 120
+ *                         totalPages:
+ *                           type: integer
+ *                           example: 12
+ *       500:
+ *         description: Interna greška servera
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Internal server error
+ */
 router.get('/', async (req, res) => {
   console.log('originalUrl:', req.originalUrl)
   console.log('query:', req.query)
@@ -97,6 +188,71 @@ router.get('/', async (req, res) => {
   }
 })
 
+/**
+ * @swagger
+ * /api/admin/users:
+ *   delete:
+ *     summary: Brisanje korisnika (bulk) - admin
+ *     description: Briše korisnike na osnovu niza userIds. Ne dozvoljava brisanje admin korisnika.
+ *     tags: [Admin]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [userIds]
+ *             properties:
+ *               userIds:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 example: [2, 3, 4]
+ *     responses:
+ *       200:
+ *         description: Uspešno obrisani korisnici
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "3 korisnika je uspešno obrisano"
+ *       400:
+ *         description: Neispravan zahtev (userIds nije validan)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: userIds must be a non-empty array
+ *       403:
+ *         description: Zabranjeno (pokušaj brisanja admin korisnika)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Cannot delete admin users
+ *       500:
+ *         description: Interna greška servera
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Internal server error
+ */
 router.delete('/', async (req, res) => {
   try {
     const { userIds } = req.body || {}
@@ -126,14 +282,12 @@ router.delete('/', async (req, res) => {
       where: { id: { in: ids } },
     })
 
-    
     const ipAddress =
       (req.headers['x-forwarded-for'] &&
         req.headers['x-forwarded-for'].toString().split(',')[0].trim()) ||
       req.ip ||
       'unknown'
 
-    
     await prisma.adminLog.create({
       data: {
         adminId: req.user.id,

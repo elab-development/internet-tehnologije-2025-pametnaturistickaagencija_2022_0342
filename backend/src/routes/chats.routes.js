@@ -31,6 +31,27 @@ function diffDays(from, to) {
   return days > 0 ? days : null
 }
 
+/**
+ * @swagger
+ * /api/chats:
+ *   get:
+ *     summary: Lista chat sesija korisnika
+ *     description: Vraća sve chat sesije ulogovanog korisnika sortirane po datumu kreiranja opadajuće.
+ *     tags: [Chats]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista chat sesija
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *       401:
+ *         description: Neautorizovan pristup (nema/loš token)
+ */
 router.get('/', async (req, res, next) => {
   try {
     const userId = Number(req.user.userId)
@@ -44,6 +65,49 @@ router.get('/', async (req, res, next) => {
   }
 })
 
+/**
+ * @swagger
+ * /api/chats:
+ *   post:
+ *     summary: Kreiranje nove chat sesije
+ *     description: Kreira novu chat sesiju za ulogovanog korisnika (chatName obavezan, destination opciono).
+ *     tags: [Chats]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [chatName]
+ *             properties:
+ *               chatName:
+ *                 type: string
+ *                 example: "Plan za Rim"
+ *               destination:
+ *                 type: string
+ *                 example: "Rim"
+ *     responses:
+ *       201:
+ *         description: Kreiran chat
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *       400:
+ *         description: chatName je obavezan
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: chatName is required
+ *       401:
+ *         description: Neautorizovan pristup (nema/loš token)
+ */
 router.post('/', async (req, res, next) => {
   try {
     console.log('POST /api/chats called with body:', req.body)
@@ -72,6 +136,55 @@ router.post('/', async (req, res, next) => {
   }
 })
 
+/**
+ * @swagger
+ * /api/chats/{id}/messages:
+ *   get:
+ *     summary: Lista poruka za chat
+ *     description: Vraća poruke za dati chat (samo ako chat pripada ulogovanom korisniku).
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID chat sesije
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     responses:
+ *       200:
+ *         description: Lista poruka (sortirano rastuće po createdAt)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *       400:
+ *         description: Nevalidan chat id
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Invalid chat id
+ *       401:
+ *         description: Neautorizovan pristup (nema/loš token)
+ *       404:
+ *         description: Chat ne postoji ili ne pripada korisniku
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Chat not found
+ */
 router.get('/:id/messages', async (req, res, next) => {
   try {
     const userId = Number(req.user.userId)
@@ -94,6 +207,71 @@ router.get('/:id/messages', async (req, res, next) => {
   }
 })
 
+/**
+ * @swagger
+ * /api/chats/{id}/messages:
+ *   post:
+ *     summary: Slanje poruke u chat i dobijanje AI plana
+ *     description: Dodaje korisničku poruku, opcionalno ažurira preferencije, generiše plan putovanja preko AI i upisuje assistant poruku u bazu. Vraća assistant poruku i plan.
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID chat sesije
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [content]
+ *             properties:
+ *               content:
+ *                 type: string
+ *                 example: "Želim 3 dana u Rimu do 500€, volim muzeje i hranu."
+ *     responses:
+ *       201:
+ *         description: Kreirana AI poruka i vraćen plan
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: object
+ *                   description: Poruka asistenta (role=assistant)
+ *                 plan:
+ *                   type: object
+ *                   description: Plan putovanja (AI rezultat)
+ *       400:
+ *         description: Nevalidan zahtev (chat id/content)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: content is required
+ *       401:
+ *         description: Neautorizovan pristup (nema/loš token)
+ *       404:
+ *         description: Chat ne postoji ili ne pripada korisniku
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Chat not found
+ */
 router.post('/:id/messages', async (req, res, next) => {
   try {
     const userId = Number(req.user.userId)
