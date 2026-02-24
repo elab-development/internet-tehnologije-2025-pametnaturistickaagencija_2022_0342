@@ -60,9 +60,11 @@ Create .env inside backend/:
 
     DATABASE_URL="postgresql://pta_user:pta_pass@localhost:5432/pta_db?schema=public"
     PORT=3001
+    FRONTEND_URL=http://localhost:3000
     JWT_SECRET= your_jwt_secret
     JWT_EXPIRES_IN=7d
     GEMINI_API_KEY= your_gemini_key
+    GEMINI_MODEL=gemini-2.0-flash
     SERPAPI_KEY = your_serpapi_key
 
     SOCKET_PORT=4001
