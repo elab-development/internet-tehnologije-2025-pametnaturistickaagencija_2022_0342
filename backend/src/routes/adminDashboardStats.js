@@ -169,7 +169,6 @@ router.get('/', async (req, res) => {
         _count: true,
       }),
 
-      // Dnevne statistike za poslednjih 7 dana
       prisma.$queryRaw`
         SELECT 
           DATE(created_at) as date,
