@@ -638,5 +638,5 @@ VAŽNO:
   })
 })
 
-const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 4001)
+const PORT = Number(process.env.SOCKET_PORT || 4001)
 server.listen(PORT, '0.0.0.0', () => console.log('Socket listening on', PORT))
