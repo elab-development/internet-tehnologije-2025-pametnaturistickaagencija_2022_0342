@@ -9,7 +9,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start:socket": "node socket-server.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "start:prod": "npm run prisma:migrate:deploy && npm run prisma:generate && node src/index.js"
   },
   "keywords": [],
   "author": "",
