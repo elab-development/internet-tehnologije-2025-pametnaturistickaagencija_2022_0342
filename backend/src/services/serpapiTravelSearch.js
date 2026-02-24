@@ -101,9 +101,9 @@ const AIRPORTS = Object.values(airportsRaw)
   }))
   .filter(a => Number.isFinite(a.lat) && Number.isFinite(a.lon))
 
-const geocodeCache = new Map() 
-const nearestAirportCache = new Map() 
-const resolveIdCache = new Map() 
+const geocodeCache = new Map()
+const nearestAirportCache = new Map()
+const resolveIdCache = new Map()
 
 function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371
@@ -228,11 +228,7 @@ async function resolveFlightId(input, { lang } = {}) {
     return CITY_TO_IATA_FAST[key]
   }
 
-  const queries = [
-    raw,
-    `${raw}, ${lang === 'sr' ? 'Srbija' : 'Serbia'}`, 
-    `${raw} airport`, 
-  ]
+  const queries = [raw, `${raw}, ${lang === 'sr' ? 'Srbija' : 'Serbia'}`, `${raw} airport`]
 
   for (const q of queries) {
     try {
@@ -247,9 +243,7 @@ async function resolveFlightId(input, { lang } = {}) {
         resolveIdCache.set(key, mid)
         return mid
       }
-    } catch {
-      
-    }
+    } catch {}
   }
 
   const nearest = await resolveToNearestAirportIata(raw)
@@ -399,13 +393,7 @@ async function searchHotels({ destination, from, to, lang, budget, adults }) {
 
       console.log(budget, totalForStay, priceTotal)
 
-      if (
-        budget != null &&
-        totalForStay != null &&
-        (totalForStay < budget * 0.8 || totalForStay > budget * 1.3)
-      ) {
-        return null
-      }
+      if (budget != null && totalForStay != null && totalForStay > budget * 1.05) return null
 
       return {
         accommodation: {
@@ -483,7 +471,6 @@ async function searchFlights({ destination, fromCity, from, to, lang, budget }) 
       currency: DEFAULT_CURRENCY,
     })
 
-
     const flights = data?.best_flights || data?.other_flights || []
 
     return flights
@@ -548,7 +535,6 @@ module.exports = async function serpapiTravelSearch(params) {
     budget,
     adults,
   })
-
 
   return {
     destination,

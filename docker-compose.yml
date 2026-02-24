@@ -1,3 +1,4 @@
+name: 'pta_app'
 services:
   db:
     image: postgres:16
@@ -11,6 +12,89 @@ services:
       - "5432:5432"
     volumes:
       - pta_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pta_user -d pta_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - app-network
+  
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env.docker
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/settings.json:/app/settings.json
+    networks:
+      - app-network
+
+  socket:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env.docker 
+    ports:
+      - "4001:4001"
+    command: ["node", "socket-server.js"]
+    volumes:
+      - ./backend/settings.json:/app/settings.json
+    networks:
+      - app-network
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - socket
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+      NEXT_PUBLIC_SOCKET_URL: http://localhost:4001
+      
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/backend:ro
+    networks:
+      - app-network
+  
+  studio:
+    profiles: ["dev"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env.docker
+    command: ["npx", "prisma", "studio", "--hostname", "0.0.0.0", "--port", "5555"]
+    ports:
+      - "5555:5555"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   pta_pgdata:

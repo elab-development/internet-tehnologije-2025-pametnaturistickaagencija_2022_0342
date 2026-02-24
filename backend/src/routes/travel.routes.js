@@ -4,6 +4,130 @@ const { travelPlanner } = require('../ai/travelPlanner')
 
 const router = express.Router()
 
+/**
+ * @swagger
+ * /api/travel/search:
+ *   get:
+ *     summary: Pretraga turističkih ponuda
+ *     description: Pretražuje turističke ponude za zadatu destinaciju. Opcionalno može generisati AI objašnjenja za svaku ponudu.
+ *     tags: [Travel]
+ *     parameters:
+ *       - in: query
+ *         name: destination
+ *         required: true
+ *         description: Naziv destinacije
+ *         schema:
+ *           type: string
+ *           example: Rim
+ *       - in: query
+ *         name: from
+ *         description: Datum polaska
+ *         schema:
+ *           type: string
+ *           example: "2026-05-01"
+ *       - in: query
+ *         name: to
+ *         description: Datum povratka
+ *         schema:
+ *           type: string
+ *           example: "2026-05-04"
+ *       - in: query
+ *         name: budget
+ *         description: Budžet u evrima
+ *         schema:
+ *           type: number
+ *           example: 500
+ *       - in: query
+ *         name: interests
+ *         description: Interesovanja (zarezom razdvojena)
+ *         schema:
+ *           type: string
+ *           example: muzeji,hrana
+ *       - in: query
+ *         name: type
+ *         description: Tip smeštaja ili putovanja
+ *         schema:
+ *           type: string
+ *           example: hotel
+ *       - in: query
+ *         name: lang
+ *         description: Jezik odgovora (sr ili en)
+ *         schema:
+ *           type: string
+ *           enum: [sr, en]
+ *           example: sr
+ *       - in: query
+ *         name: explain
+ *         description: Da li AI treba da objasni svaku ponudu (true/false)
+ *         schema:
+ *           type: string
+ *           example: true
+ *       - in: query
+ *         name: fromCity
+ *         description: Grad polaska
+ *         schema:
+ *           type: string
+ *           example: Beograd
+ *     responses:
+ *       200:
+ *         description: Uspešno izvršena pretraga
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 destination:
+ *                   type: string
+ *                   example: Rim
+ *                 criteria:
+ *                   type: object
+ *                   properties:
+ *                     from:
+ *                       type: string
+ *                       nullable: true
+ *                     to:
+ *                       type: string
+ *                       nullable: true
+ *                     budget:
+ *                       type: number
+ *                       nullable: true
+ *                     interests:
+ *                       type: string
+ *                       nullable: true
+ *                     type:
+ *                       type: string
+ *                       nullable: true
+ *                     lang:
+ *                       type: string
+ *                       example: sr
+ *                 offers:
+ *                   type: array
+ *                   description: Lista pronađenih ponuda
+ *                   items:
+ *                     type: object
+ *       400:
+ *         description: Nevalidni parametri zahteva
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Niste uneli destinaciju
+ *       500:
+ *         description: Greška prilikom pretrage
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Neuspešna pretraga putovanja
+ *                 error:
+ *                   type: string
+ */
 router.get('/travel/search', async (req, res) => {
   try {
     const destination = (req.query.destination || '').toString().trim()
