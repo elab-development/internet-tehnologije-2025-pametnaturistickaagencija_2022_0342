@@ -13,6 +13,7 @@ app.use(
   }),
 )
 
+
 app.use(express.json())
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -34,6 +35,9 @@ app.get("/swagger.json", (req, res) => {
  */
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' })
+})
 
 const apiRoutes = require('./routes')
 app.use('/api', apiRoutes)
