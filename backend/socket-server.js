@@ -70,7 +70,7 @@ function normalizeBudget(b, baseBudget) {
   return n
 }
 
-
+// ✅ IMPORT SerpAPI pretrage (prilagodi putanju!)
 const serpapiTravelSearch = require('./src/services/serpapiTravelSearch')
 
 function parseCriteriaUpdate(update) {
@@ -152,7 +152,7 @@ const TravelChatSchema = z.object({
         type: z.string().optional(),
         lang: z.enum(['sr', 'en']).optional(),
       }),
-      z.string(), 
+      z.string(), // ✅ prihvati i string
     ])
     .nullish(),
   filters_update: z
@@ -174,15 +174,29 @@ const JWT_SECRET = process.env.JWT_SECRET || ''
 
 const RATE_LIMIT_MS = Number(process.env.CHAT_RATE_LIMIT_MS || 1200)
 const MAX_MESSAGE_CHARS = Number(process.env.CHAT_MAX_MESSAGE_CHARS || 1500)
-const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS || 30000) 
+const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS || 30000) // (trenutno ne koristimo direktno)
 
 const app = express()
-app.use(cors({ origin: SOCKET_ORIGIN }))
 
-app.get('/health-socket', (_, res) => res.json({ ok: true }))
+const raw = process.env.SOCKET_ORIGIN || ''
+const ALLOWED = raw
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true) // Postman/server-to-server
+    if (ALLOWED.length === 0) return cb(null, true)
+    return ALLOWED.includes(origin) ? cb(null, true) : cb(new Error('CORS blocked'))
+  },
+  credentials: true,
+}
+
+app.use(cors(corsOptions))
 
 const server = http.createServer(app)
-const io = new Server(server, { cors: { origin: SOCKET_ORIGIN } })
+const io = new Server(server, { cors: corsOptions })
 
 function extractToken(socket) {
   const t = socket.handshake?.auth?.token
@@ -269,7 +283,7 @@ function applyCriteriaUpdateToSearchParams(base, update) {
     budget: typeof u.budget === 'number' ? u.budget : base.budget,
     preferences: Array.isArray(u.interests) ? u.interests : base.preferences,
 
-    
+    // ✅ zadrži postojeće parametre koji su bitni SerpAPI-ju
     passengers: base.passengers,
     fromCity: base.fromCity,
   }
@@ -310,7 +324,7 @@ function applyFiltersUpdate(offers, filters) {
   return out
 }
 
-
+// ✅ Payload schema usklađen sa SerpAPI potrebama (fromCity, passengers)
 const ChatMessagePayloadSchema = z.object({
   chatId: z.coerce.number(),
   userId: z.coerce.number().optional(),
@@ -324,7 +338,7 @@ const ChatMessagePayloadSchema = z.object({
     passengers: z.coerce.number(),
     preferences: z.array(z.string()).optional(),
 
-    
+    // ✅ novo / opciono
     fromCity: z.string().optional(),
   }),
 
@@ -361,7 +375,7 @@ io.on('connection', socket => {
       const currentFilters = parsedPayload.currentFilters || {}
       const currentOffers = parsedPayload.currentOffers || []
 
-      
+      // ✅ defaults koji su bitni SerpAPI-ju
       const fromCity = baseSearchParams.fromCity || 'Beograd'
       const adults = Number(baseSearchParams.passengers) || 2
 
@@ -434,20 +448,20 @@ VAŽNO:
           if (!fu) return {}
           if (typeof fu === 'object' && !Array.isArray(fu)) return fu
 
-          
+          // ako je array, tretiraj kao "options" ili "mustHaveAmenities"
           if (Array.isArray(fu)) {
             const items = fu
               .map(String)
               .map(s => s.trim())
               .filter(Boolean)
 
-            
+            // heuristika: ako izgleda kao amenities, ubaci u mustHaveAmenities
             return {
               mustHaveAmenities: items,
             }
           }
 
-        
+          // ako je string, probaj da ga parsiraš ili splituješ
           if (typeof fu === 'string') {
             const s = fu.trim()
             if (!s) return {}
@@ -467,15 +481,15 @@ VAŽNO:
           return {}
         }
 
-       
+        // ✅ normalize follow_up_questions
         if (aiJson && typeof aiJson === 'object') {
           const fu = aiJson.follow_up_questions
 
           if (typeof fu === 'string') {
-           
+            // pokušaj da ga pretvoriš u listu
             const s = fu.trim()
 
-            
+            // ako je JSON string tipa '["a","b"]'
             if (s.startsWith('[') && s.endsWith(']')) {
               try {
                 const parsed = JSON.parse(s)
@@ -496,7 +510,7 @@ VAŽNO:
             aiJson.follow_up_questions = []
           }
         }
-        
+        // ✅ normalizuj criteria_update / filters_update ako dođu kao string
         if (aiJson && typeof aiJson === 'object') {
           if (typeof aiJson.criteria_update === 'string') {
             aiJson.criteria_update = parseCriteriaUpdate(aiJson.criteria_update)
@@ -537,12 +551,12 @@ VAŽNO:
           ? aiOut.filters_update
           : {}
 
-      
+      // ✅ ENFORCE: ako korisnik traži jeftinije, a AI nije popunio criteria_update.budget → mi ga upisujemo
       if (
         wantsCheaper(text) &&
         (criteriaUpdate.budget == null || !Number.isFinite(Number(criteriaUpdate.budget)))
       ) {
-        
+        // probaj prvo da izvučeš iz AI reply (u tvom primeru 1600)
         const fromReply = extractNewBudgetFromReply(aiOut.reply)
         const forced = fromReply ?? reduceBudget20(baseSearchParams.budget)
 
@@ -562,7 +576,7 @@ VAŽNO:
         criteriaUpdate,
       )
 
-     
+      // ✅ Primeni criteria_update, ali zadrži passengers/fromCity
       const updatedSearchParams = applyCriteriaUpdateToSearchParams(
         baseSearchParams,
         criteriaUpdate,
@@ -571,14 +585,14 @@ VAŽNO:
 
       const lang = (criteriaUpdate.lang || 'sr').toLowerCase()
 
-      
+      // ✅ Pozovi REALNU pretragu (SerpAPI)
       const searchResult = await serpapiTravelSearch({
         destination: updatedSearchParams.destination,
         from: updatedSearchParams.startDate,
         to: updatedSearchParams.endDate,
         budget: updatedSearchParams.budget,
 
-        
+        // ✅ ključno usklađenje sa tvojom pretragom:
         adults: Number(updatedSearchParams.passengers) || adults, // hoteli
         fromCity: updatedSearchParams.fromCity || fromCity, // letovi
         lang,
@@ -601,7 +615,7 @@ VAŽNO:
         return
       }
 
-      
+      // ✅ Opcionalno: primeni filters_update (sort/filter)
       const finalOffers = applyFiltersUpdate(offers, filtersUpdate)
 
       await addMessage(chatId, 'assistant', aiOut.reply)
@@ -624,7 +638,5 @@ VAŽNO:
   })
 })
 
-server.listen(Number(process.env.SOCKET_PORT || 4001))
-
-
-
+const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 4001)
+server.listen(PORT, '0.0.0.0', () => console.log('Socket listening on', PORT))
