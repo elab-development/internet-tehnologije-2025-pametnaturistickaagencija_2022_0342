@@ -107,11 +107,11 @@ Create `.env` file inside `backend/`:
 DATABASE_URL="postgresql://pta_user:pta_password@localhost:5432/pta_db?schema=public"
 PORT=3001 FRONTEND_URL=http://localhost:3000
 
-JWT_SECRET=your_jwt_secret JWT_EXPIRES_IN=7d
+JWT_SECRET=n/a JWT_EXPIRES_IN=7d
 
-GEMINI_API_KEY=your_gemini_key GEMINI_MODEL=gemini-2.0-flash
+GEMINI_API_KEY=n/a GEMINI_MODEL=gemini-2.0-flash
 
-SERPAPI_API_KEY=your_serpapi_key
+SERPAPI_API_KEY=n/a
 
 SOCKET_PORT=4001 SOCKET_ORIGIN=http://localhost:3000
 REQUIRE_SOCKET_AUTH=false
@@ -238,7 +238,7 @@ This project demonstrates:
 ## Author
 
 Katarina Rajić, Jana Šumonja, Ilija Ćendić
-Faculty of Organizational Sciences
+,Faculty of Organizational Sciences
 
 
 
